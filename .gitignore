@@ -35,9 +35,18 @@ logs/
 *.log
 volumes_v2/
 
-7.无关文件
-代码结构
-notebooks/
+# 7. 前端构建产物
+frontend-react/dist/
+frontend-react/node_modules/
 
-# Ignore ALL generated RAG evaluation reports
+# 8. 评测报告
 evals/reports/
+
+# 9. 临时文件
+temp/
+notebooks/
+*.pdf
+
+# 10. 系统文件
+Thumbs.db
+.vs/

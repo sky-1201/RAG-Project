@@ -30,7 +30,7 @@ Finance-RAG 是一个专为处理复杂金融财报、研报设计的企业级�
 
 ### 1.AI / 核心算法侧
   * **编排框架:** `LangGraph`, `LangChain` (仅作底层工具类)
-  * **模型基座:** 兼容深求/智谱 API (文本生成), `BGE-m3` (Embedding), `BGE-Reranker` (重排)
+  * **模型基座:** 阿里通义千问 `qwen-max` (文本生成), `text-embedding-v4` (Embedding), `gte-rerank-v2` (重排)
   * **文档解析:** `Docling` / `PyMuPDF` (处理复杂图文混排版面)
 ### 2.后端服务侧
   * **Web 框架:** `FastAPI` (全异步非阻塞 IO, `BackgroundTasks` 异步防抖)
@@ -40,7 +40,7 @@ Finance-RAG 是一个专为处理复杂金融财报、研报设计的企业级�
   * **向量数据库:** `Milvus 2.4` (HNSW 索引，存储高维 Child Chunk)
   * **关系型数据库:** `PostgreSQL` (存储元数据、MD5 指纹防重、Parent Chunk)
 ### 4.前端与工程化
-  * **前端交互:** `Streamlit` (流式 SSE 输出响应)
+  * **前端交互:** `React 18 + TypeScript + Shadcn/ui` (流式 SSE 输出响应)
   * **部署运维:** `Docker`, `Docker Compose` 一键部署
   * **系统评测:** 基于 `LLM-as-a-judge` 的自动化评测脚本
 
@@ -70,16 +70,33 @@ Finance-RAG 是一个专为处理复杂金融财报、研报设计的企业级�
 
 ---
 
-## 🚀 快速启动 (Quick Start)
-
-本项目完全容器化，可通过 Docker Compose 一键拉起所有依赖环境。
+## 🚀 快速启动
 
 ### 1. 环境准备
-确保本机已安装 `Docker` 与 `Docker Compose`。
+确保已安装 `Docker` 与 `Docker Compose`。
 
 ### 2. 克隆与配置
 ```bash
-git clone [https://github.com/your-username/Finance-RAG.git](https://github.com/your-username/Finance-RAG.git)
+git clone https://github.com/your-username/Finance-RAG.git
 cd Finance-RAG
-# 在根目录创建 .env 文件并填入你的 API Keys
 cp .env.example .env
+# 编辑 .env，填入 DASHSCOPE_API_KEY（申请地址: https://bailian.console.aliyun.com/）
+```
+
+### 3. 一键启动
+```bash
+# 启动全部服务（后端 + 前端 + Milvus + PostgreSQL）
+docker compose up -d
+
+# 或只启动后端依赖（前端本地开发时用）
+docker compose up -d postgres-v2 standalone-v2 etcd-v2 minio-v2 backend-v2
+```
+
+### 4. 访问
+| 服务 | 地址 |
+|------|------|
+| React 前端 (Docker) | http://localhost:8502 |
+| React 前端 (开发) | `cd frontend-react && npm run dev` → http://localhost:5173 |
+| FastAPI 文档 | http://localhost:8000/docs |
+| Milvus Attu | http://localhost:8002 |
+| pgAdmin | http://localhost:5050 (admin@rag.com / admin) |

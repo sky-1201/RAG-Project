@@ -44,9 +44,13 @@ def setup_global_logger() -> None:
         root_logger.addHandler(console_handler)
         root_logger.addHandler(file_handler)
 
-        # 7. 降噪处理：屏蔽一些底层第三方库过于啰嗦的 INFO 日志
+        # 7. 降噪处理：屏蔽一些底层第三方库过于啰嗦的 DEBUG/INFO 日志
         logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("httpcore").setLevel(logging.WARNING)
+        logging.getLogger("openai").setLevel(logging.WARNING)
         logging.getLogger("urllib3").setLevel(logging.WARNING)
+        logging.getLogger("watchfiles").setLevel(logging.WARNING)
+        logging.getLogger("docling").setLevel(logging.INFO)
 
         logging.info("✅ 全局日志系统初始化完成。")
 

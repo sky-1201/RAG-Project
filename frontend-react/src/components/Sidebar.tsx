@@ -1,0 +1,244 @@
+import { useState, useEffect, useCallback } from 'react'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { FileUpload } from '@/components/FileUpload'
+import { useChatStore } from '@/store/chatStore'
+import {
+  listConversations,
+  getConversation,
+  deleteConversation,
+  type ConversationSummary,
+} from '@/services/api'
+import {
+  Plus,
+  Trash2,
+  MessageSquare,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+export function Sidebar() {
+  const { messages, clearMessages, setMessages, setConversationId, currentConversationId } =
+    useChatStore()
+  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isOnline, setIsOnline] = useState(false)
+  const [convs, setConvs] = useState<ConversationSummary[]>([])
+  const [loadingConvId, setLoadingConvId] = useState<string | null>(null)
+
+  // 检测后端 — 轻量 HEAD 请求，不触发 Agent
+  useEffect(() => {
+    const check = () => {
+      fetch('/health', { signal: AbortSignal.timeout(3000) })
+        .then((r) => setIsOnline(r.ok))
+        .catch(() => setIsOnline(false))
+    }
+    check()
+    const interval = setInterval(check, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // 加载对话列表
+  const refreshConvList = useCallback(async () => {
+    try {
+      const data = await listConversations()
+      setConvs(data)
+    } catch {
+      // 后端不可用
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshConvList()
+  }, [refreshConvList])
+
+  // 有新消息或切换对话后刷新列表
+  useEffect(() => {
+    if (messages.length > 0 && currentConversationId) {
+      refreshConvList()
+    }
+  }, [messages.length, currentConversationId, refreshConvList])
+
+  // 加载历史对话
+  const handleLoadConv = async (id: string) => {
+    setLoadingConvId(id)
+    try {
+      const detail = await getConversation(id)
+      setConversationId(id)
+      setMessages(
+        detail.messages.map((m) => ({
+          id: m.id,
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+          timestamp: m.timestamp,
+        }))
+      )
+    } catch {
+      // ignore
+    } finally {
+      setLoadingConvId(null)
+    }
+  }
+
+  // 新对话
+  const handleNewConv = () => {
+    clearMessages()
+    refreshConvList()
+  }
+
+  // 删除对话
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await deleteConversation(id)
+      if (currentConversationId === id) {
+        clearMessages()
+      }
+      refreshConvList()
+    } catch {
+      // ignore
+    }
+  }
+
+  const convTitle =
+    messages.length > 0
+      ? messages.find((m) => m.role === 'user')?.content.slice(0, 30) || '新对话'
+      : '新对话'
+
+  return (
+    <aside
+      className={cn(
+        'flex h-full flex-col border-r bg-card transition-all duration-300',
+        isCollapsed ? 'w-0 overflow-hidden border-r-0' : 'w-80'
+      )}
+    >
+      {/* Logo */}
+      <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-primary" />
+          <span className="font-semibold text-sm">Finance-RAG</span>
+        </div>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setIsCollapsed(true)}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <Separator />
+
+      {/* 新建对话 */}
+      <div className="px-3 py-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full justify-start gap-2 text-sm"
+          onClick={handleNewConv}
+        >
+          <Plus className="h-4 w-4" />
+          新建对话
+        </Button>
+      </div>
+
+      {/* 对话历史列表 */}
+      <ScrollArea className="flex-1 px-3">
+        {convs.length === 0 ? (
+          <p className="py-4 text-center text-xs text-muted-foreground">暂无对话历史</p>
+        ) : (
+          <div className="space-y-1 pb-2">
+            {convs.map((c) => (
+              <div
+                key={c.id}
+                className={cn(
+                  'group flex items-center gap-2 rounded-md px-3 py-2 cursor-pointer transition-colors hover:bg-accent',
+                  currentConversationId === c.id && 'bg-accent'
+                )}
+                onClick={() => handleLoadConv(c.id)}
+              >
+                {loadingConvId === c.id ? (
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+                ) : (
+                  <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
+                )}
+                <span className="truncate text-xs flex-1">{c.title}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => handleDelete(c.id, e)}
+                >
+                  <Trash2 className="h-3 w-3 text-muted-foreground" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </ScrollArea>
+
+      <Separator />
+
+      {/* 当前对话 */}
+      <div className="px-3 py-2">
+        <div className="flex items-center gap-2 rounded-md bg-accent/50 px-3 py-2">
+          <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="truncate text-xs">{convTitle}</span>
+          {messages.length > 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto h-6 w-6 shrink-0"
+              onClick={handleNewConv}
+            >
+              <Trash2 className="h-3 w-3 text-muted-foreground" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* 知识库管理 */}
+      <div className="px-3 py-3">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          知识库管理
+        </h2>
+        <FileUpload />
+        <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
+          建议上传类似「深信服2025年半年度报告.pdf」命名格式的文件，以便系统自动提取年份与公司信息。
+        </p>
+      </div>
+
+      <Separator />
+
+      {/* 连接状态 */}
+      <div className="px-3 py-3">
+        <div className="flex items-center gap-2 text-xs">
+          <span className={cn('h-2 w-2 rounded-full', isOnline ? 'bg-emerald-500' : 'bg-red-400')} />
+          <span className="text-muted-foreground">{isOnline ? '后端已连接' : '后端未连接'}</span>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">Model: qwen-max · Milvus 2.4</p>
+      </div>
+    </aside>
+  )
+}
+
+/** 侧边栏展开按钮 */
+export function SidebarToggle() {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="absolute left-3 top-3 z-10 h-8 w-8"
+      onClick={() => {
+        const sidebar = document.querySelector('aside')
+        const toggle = document.querySelector('#sidebar-toggle')
+        if (sidebar) sidebar.classList.replace('w-0', 'w-80')
+        if (toggle) toggle.classList.add('hidden')
+      }}
+      id="sidebar-toggle"
+    >
+      <ChevronRight className="h-4 w-4" />
+    </Button>
+  )
+}

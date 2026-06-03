@@ -25,9 +25,8 @@ pydantic>=2.7.0                # 数据验证与序列化
 pydantic-settings>=2.2.1       # 环境变量配置管理
 python-multipart>=0.0.9        # 🚨 必加：FastAPI 处理文件上传的核心依赖
 
-# 5. 前端展示与通信 (Streamlit Frontend)
-streamlit>=1.33.0              # 快速构建 Web 交互界面
-requests>=2.31.0               # 🚨 必加：用于前后端 API 通信
+# 5. HTTP 客户端
+requests>=2.31.0
 
 # 6. 数据处理与基础工具箱 (Utils)
 pandas>=2.2.2                  # 结构化数据处理
@@ -38,9 +37,6 @@ python-dotenv>=1.0.1           # 读取 .env 环境变量文件
 SQLAlchemy==2.0.29
 psycopg2-binary==2.9.9         # 专为容器环境准备的二进制驱动，无需编译
 
-# 8. 检索算法与分词库 (双路召回依赖)
-rank-bm25>=0.2.2
-
-# 9. Agent 编排框架与文本处理
+# 8. Agent 编排框架与文本处理
 langgraph>=0.0.30
 langchain-text-splitters>=0.0.1

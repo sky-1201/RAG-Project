@@ -28,7 +28,7 @@ class RAGEvaluator:
         self.agent = FinancialAgentService()
 
         self.judge_llm = ChatOpenAI(
-            model="qwen-max",
+            model=settings.LLM_MODEL,
             api_key=settings.DASHSCOPE_API_KEY,
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
             temperature=0.0

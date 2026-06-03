@@ -91,6 +91,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    entrypoint: ["/bin/bash", "/app/docker-entrypoint.sh"]
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     ports:
       - "8000:8000"
@@ -101,6 +102,8 @@ services:
       - PG_HOST=finance-rag-postgres-v2
       - PG_PORT=5432      # 容器内部用回原生 5432
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      # HuggingFace 镜像加速（国内网络必需）
+      - HF_ENDPOINT=https://hf-mirror.com
     env_file:
       - .env
     depends_on:
@@ -108,22 +111,21 @@ services:
       - postgres-v2
     volumes:
       - .:/app   # 🌟 关键：冒号左边是本地路径，右边是容器路径
+      # 缓存下载的模型，避免每次重新下载
+      - hf_cache:/root/.cache/huggingface
+
   # ==========================================
-  # 4. 交互层：Streamlit 页面前端 🌟 新增
-  # ==========================================
-  frontend-v2:
-    container_name: finance-rag-frontend-v2
+  # 4. React 现代化前端
+  frontend-react:
+    container_name: finance-rag-frontend-react
     build:
-      context: .
+      context: ./frontend-react
       dockerfile: Dockerfile
-    # 覆盖 Dockerfile 默认的启动命令，改为拉起 Streamlit
-    command: ["streamlit", "run", "frontend/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
     ports:
-      - "8501:8501"
-    environment:
-      # 告诉前端，后端接口的地址在哪里
-      - API_URL=http://finance-rag-backend-v2:8000
+      - "8502:80"
     depends_on:
       - backend-v2
-    volumes:
-      - .:/app  # 🌟 关键：前端也需要开任意门
+    restart: unless-stopped
+
+volumes:
+  hf_cache:

@@ -8,21 +8,33 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# 4. 安装基础系统编译工具 (有些 Python 库底层是 C 写的，需要这个才能安装成功)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# 4. 安装系统依赖 (OpenCV 表格解析需要 libxcb/libgl 等图形库)
+#    先切清华镜像源再安装，国内网络友好
+RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null; \
+    apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    libxcb1 \
+    libxcb-icccm4 \
+    libxcb-image0 \
+    libxcb-keysyms1 \
+    libxcb-randr0 \
+    libxcb-render-util0 \
+    libxcb-shape0 \
+    libxcb-xinerama0 \
+    libxcb-xkb1 \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# 5. 【极其重要的一步】先拷贝依赖清单并安装
-# 这样做是为了利用 Docker 的层缓存机制！只要 requirements 不变，以后改代码秒级打包
+# 5. 安装 Python 依赖 (利用 Docker 层缓存)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
-# 6. 把你本地的所有代码文件拷贝进容器的 /app 目录里
+# 6. 拷贝项目代码
 COPY . .
 
-# 7. 暴露 FastAPI 的 8000 端口和 Streamlit 的 8501 端口
-EXPOSE 8000 8501
+# 7. 暴露 FastAPI 后端端口
+EXPOSE 8000
 
-# 8. 默认启动命令：拉起 FastAPI 后端服务器
+# 8. 默认启动命令
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

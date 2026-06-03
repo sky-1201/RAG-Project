@@ -1,11 +1,8 @@
 import logging
 from langchain_core.tools import tool
-from app.services.retrieval import RetrievalService
+from app.core.dependencies import get_retrieval_service
 
 logger = logging.getLogger(__name__)
-
-
-_retriever_service = None
 
 
 @tool
@@ -23,18 +20,9 @@ def financial_retriever_tool(query: str, company: str = None, year: str = None) 
 
     logger.info(f"🛠️ Agent 决定调用检索工具 | 搜索词: {query} | 公司: {company} | 年份: {year}")
 
-    global _retriever_service
-    if _retriever_service is None:
-        try:
-            logger.info("⏳ 正在初始化 Milvus 检索服务...")
-            _retriever_service = RetrievalService()
-            logger.info("✅ Milvus 检索服务初始化成功！")
-        except Exception as e:
-            logger.error(f"❌ 初始化失败: {str(e)}", exc_info=True)
-            return "知识库连接失败，请联系管理员。"
-
     try:
-        docs = _retriever_service.run_pipeline(query=query, company=company, year=year)
+        retrieval_service = get_retrieval_service()
+        docs = retrieval_service.run_pipeline(query=query, company=company, year=year)
 
         if not docs:
             return "数据库中未检索到相关财报信息。请告知用户没有查到，不要自行编造。"

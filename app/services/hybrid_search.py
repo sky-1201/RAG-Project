@@ -3,6 +3,7 @@ import jieba
 from typing import List, Dict
 from pymilvus import AnnSearchRequest, RRFRanker
 from pymilvus.model.sparse import BM25EmbeddingFunction
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -39,23 +40,23 @@ class HybridSearchEngine:
             data=[query_dense_vec],
             anns_field="dense_vector",
             param={"metric_type": "L2"},
-            limit=60,
+            limit=settings.HYBRID_DENSE_LIMIT,
             expr=expr
         )
 
         # 3. 构建 Sparse (字面量 BM25) 召回请求
         req_sparse = AnnSearchRequest(
-            data=sparse_dict_list,  # 直接传入转化好的完美字典列表
+            data=sparse_dict_list,
             anns_field="sparse_vector",
             param={"metric_type": "IP"},
-            limit=40,
+            limit=settings.HYBRID_SPARSE_LIMIT,
             expr=expr
         )
 
         # 4. 底层 C++ 原生融合
         results = collection.hybrid_search(
             reqs=[req_dense, req_sparse],
-            rerank=RRFRanker(k=60),
+            rerank=RRFRanker(k=settings.HYBRID_RRF_K),
             limit=top_k,
             output_fields=["text", "metadata"]
         )

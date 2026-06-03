@@ -11,11 +11,14 @@ class Settings(BaseSettings):
     # --- 基础配置 ---
     APP_NAME: str = "Financial_Agentic_RAG"
     DEBUG: bool = True
+    API_SECRET_KEY: str = "finance-rag-dev-key"  # 生产环境请在 .env 中覆盖
 
     # --- 模型 API 配置 ---
     DASHSCOPE_API_KEY: str  # 必须在 .env 中配置，否则启动报错
     EMBEDDING_MODEL: str = "text-embedding-v4"  # 阿里最新的大模型嵌入 API
-    LLM_MODEL: str = "qwen-max"
+    EMBEDDING_DIM: int = 1024                    # text-embedding-v4 输出维度
+    LLM_MODEL: str = "qwen-max"                  # Agent 推理模型
+    RERANK_MODEL: str = "gte-rerank-v2"          # Rerank 重排序模型
     """
     # --- Milvus 向量库配置 (Docker Standalone 模式) ---本地后端模式
     MILVUS_HOST: str = "127.0.0.1"
@@ -32,6 +35,22 @@ class Settings(BaseSettings):
     # --- Chunking 策略配置
     CHUNK_SIZE: int = 500
     CHUNK_OVERLAP: int = 50
+
+    # --- PDF 解析配置
+    PDF_BATCH_PAGES: int = 30          # Docling 每批解析页数
+    EMBEDDING_BATCH_SIZE: int = 10     # Embedding API 每批文本数
+    EMBEDDING_MAX_TEXT_LENGTH: int = 8000  # 单条文本 Embedding 截断长度
+    EMBEDDING_RETRY_TIMES: int = 3     # API 调用失败重试次数
+
+    # --- 双路检索配置
+    HYBRID_DENSE_LIMIT: int = 60       # Dense 召回候选数
+    HYBRID_SPARSE_LIMIT: int = 40      # Sparse 召回候选数
+    HYBRID_RRF_K: int = 60             # RRF 融合参数
+    HYBRID_TOP_K: int = 15             # 融合后保留子块数
+    RERANK_TOP_N: int = 3              # Rerank 后保留父块数
+
+    # --- Agent 配置
+    LLM_TEMPERATURE: float = 0.01
 
     API_HOST: str = "127.0.0.1"
     API_PORT: int = 8000

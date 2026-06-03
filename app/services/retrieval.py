@@ -4,10 +4,11 @@ from typing import List, Optional
 from langchain_community.embeddings import DashScopeEmbeddings
 from langchain_core.documents import Document
 from app.core.config import settings
+from app.core.exceptions import RetrievalError, RerankError, ParentFetchError, ModelAPIError
 from app.services.hybrid_search import HybridSearchEngine
 
 from pymilvus import connections, Collection
-from app.database import SessionLocal, ParentDocument
+from app.database import get_db_session, ParentDocument
 
 logger = logging.getLogger(__name__)
 
@@ -54,20 +55,18 @@ class RetrievalService:
             return []
 
         logger.info(f"🔗 正在从 PostgreSQL 中提取 {len(parent_ids)} 个完整父块...")
-        db = SessionLocal()
         parent_docs = []
-        try:
-            records = db.query(ParentDocument).filter(ParentDocument.id.in_(parent_ids)).all()
-            for record in records:
-                parent_docs.append(Document(
-                    page_content=record.content,
-                    metadata=record.meta_data or {}
-                ))
-            logger.info(f"✅ 成功提取 {len(parent_docs)} 个父块，即将送入 Reranker 重排！")
-        except Exception as e:
-            logger.error(f"❌ PostgreSQL 查询失败: {str(e)}")
-        finally:
-            db.close()
+        with get_db_session() as db:
+            try:
+                records = db.query(ParentDocument).filter(ParentDocument.id.in_(parent_ids)).all()
+                for record in records:
+                    parent_docs.append(Document(
+                        page_content=record.content,
+                        metadata=record.meta_data or {}
+                    ))
+                logger.info(f"✅ 成功提取 {len(parent_docs)} 个父块，即将送入 Reranker 重排！")
+            except Exception as e:
+                raise ParentFetchError(f"PostgreSQL 父块查询失败: {e}") from e
 
         return parent_docs
 
@@ -81,7 +80,7 @@ class RetrievalService:
 
         try:
             response = dashscope.TextReRank.call(
-                model=dashscope.TextReRank.Models.gte_rerank,
+                model=settings.RERANK_MODEL,
                 query=query,
                 documents=doc_texts,
                 top_n=top_n,
@@ -99,15 +98,26 @@ class RetrievalService:
 
                 logger.info(f"✅ Rerank 完成！提取 Top {top_n}。")
                 return reranked_docs
-            else:
-                logger.error(f"❌ Rerank API 调用失败: 状态码 {response.status_code}, {response.message}")
+
+            # 403 = 模型未开通，降级跳过
+            if response.status_code == 403:
+                logger.warning("⚠️ Rerank 模型未开通，跳过精排，使用默认排序。")
                 return docs[:top_n]
+
+            # 其他错误码：抛出可恢复异常
+            raise RerankError(
+                f"Rerank API 返回 {response.status_code}: {response.message}"
+            )
+
+        except RerankError:
+            raise
         except Exception as e:
-            logger.error(f"❌ Rerank 过程发生异常: {str(e)}", exc_info=True)
-            return docs[:top_n]
+            raise RerankError(f"Rerank 调用异常: {e}") from e
 
     def run_pipeline(self, query: str, company: Optional[str] = None, year: Optional[str] = None,
-                     final_top_n: int = 3) -> List[Document]:
+                     final_top_n: int = None) -> List[Document]:
+        if final_top_n is None:
+            final_top_n = settings.RERANK_TOP_N
         try:
             # =======================================================
             #  阶段 1：生成过滤表达式与 Dense 向量
@@ -133,7 +143,7 @@ class RetrievalService:
                 query_dense_vec=query_dense_vec,
                 collection=self.collection,
                 expr=expr,
-                top_k=15  # 只要最终融合出的前 15 个“极品子块”
+                top_k=settings.HYBRID_TOP_K
             )
 
             # 转换回 LangChain 认的 Document 格式
@@ -157,6 +167,15 @@ class RetrievalService:
 
             return final_docs
 
+        except RerankError:
+            # Rerank 失败已记录，返回未排序的 Top-N
+            logger.warning("⚠️ Rerank 失败，使用默认排序返回结果。")
+            return parent_docs[:final_top_n]
+        except ParentFetchError:
+            # 父块查询失败，返回子块文本作为兜底
+            logger.warning("⚠️ 父块查询失败，以子块文本作为兜底。")
+            return top_fused_docs[:final_top_n]
+        except RetrievalError:
+            raise
         except Exception as e:
-            logger.error(f"❌ 检索 Pipeline 崩溃: {str(e)}", exc_info=True)
-            return []
+            raise RetrievalError(f"检索 Pipeline 崩溃: {e}") from e
