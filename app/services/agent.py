@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.prompts.loader import load_prompt
 from app.tools.finance_repl import python_repl_tool
 from app.tools.retriever_tool import financial_retriever_tool
+from app.tools.memory_tool import memory_retriever_tool
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ class FinancialAgentService:
             temperature=settings.LLM_TEMPERATURE,
             streaming=True
         )
-        self.tools = [financial_retriever_tool, python_repl_tool]
+        self.tools = [financial_retriever_tool, python_repl_tool, memory_retriever_tool]
 
         # 从 YAML 模板加载 system prompt（修改模板后重启即可生效）
         prompt_config = load_prompt("financial_agent")

@@ -25,6 +25,7 @@ async def chat_stream_endpoint(request: ChatRequest):
     messages.append(("user", request.query))
 
     async def event_generator():
+        full_response = ""  # 累积 AI 的完整回答，用于流结束后写入长期记忆
         try:
             async for event in agent_service.agent_executor.astream_events(
                     {"messages": messages},
@@ -35,6 +36,7 @@ async def chat_stream_endpoint(request: ChatRequest):
                 if kind == "on_chat_model_stream":
                     chunk = event["data"]["chunk"].content
                     if chunk:
+                        full_response += chunk
                         yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
 
                 elif kind == "on_tool_start":
@@ -46,6 +48,20 @@ async def chat_stream_endpoint(request: ChatRequest):
                     tool_name = event["name"]
                     logger.info(f"✅ 工具调用完成: {tool_name}")
                     yield f"data: {json.dumps({'type': 'tool_end', 'tool': tool_name})}\n\n"
+
+            # ==========================================
+            # 流结束：异步写入长期记忆（静默失败，不影响对话）
+            # ==========================================
+            if full_response.strip():
+                try:
+                    from app.core.dependencies import get_memory_service
+                    memory_svc = get_memory_service()
+                    memory_svc.store_episode(
+                        query=request.query,
+                        answer=full_response.strip(),
+                    )
+                except Exception as mem_err:
+                    logger.warning(f"🧠 长期记忆写入失败（不影响对话）: {mem_err}")
 
             yield "data: [DONE]\n\n"
 

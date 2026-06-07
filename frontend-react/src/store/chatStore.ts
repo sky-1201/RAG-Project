@@ -48,7 +48,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   lastUploadFilename: null,
 
   sendMessage: async (query: string) => {
-    const { messages, abortController: oldAbort, currentConversationId } = get()
+    const { messages, abortController: oldAbort } = get()
 
     if (oldAbort) oldAbort.abort()
 

@@ -51,6 +51,9 @@ class Settings(BaseSettings):
 
     # --- Agent 配置
     LLM_TEMPERATURE: float = 0.01
+    MEMORY_ENABLED: bool = True             # 是否启用长期记忆（跨对话语义检索）
+    MEMORY_COLLECTION_NAME: str = "long_term_memories"
+    MEMORY_SEARCH_TOP_K: int = 3            # 记忆召回数量
 
     API_HOST: str = "127.0.0.1"
     API_PORT: int = 8000

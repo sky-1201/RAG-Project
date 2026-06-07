@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 # ==========================================
 _retrieval_service = None
 _agent_service = None
+_memory_service = None
 
 
 # ---------- RetrievalService ----------
@@ -61,3 +62,26 @@ def set_agent_service(service):
     """注入自定义 FinancialAgentService（测试用）"""
     global _agent_service
     _agent_service = service
+
+
+# ---------- MemoryService ----------
+
+def get_memory_service():
+    """
+    获取 MemoryService 的单例实例。
+    测试时可通过 set_memory_service(mock) 注入。
+    """
+    global _memory_service
+    if _memory_service is not None:
+        return _memory_service
+
+    from app.services.memory import MemoryService
+    _memory_service = MemoryService()
+    logger.info("🧠 MemoryService 单例已创建")
+    return _memory_service
+
+
+def set_memory_service(service):
+    """注入自定义 MemoryService（测试用）"""
+    global _memory_service
+    _memory_service = service
