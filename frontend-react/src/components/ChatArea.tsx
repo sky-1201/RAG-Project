@@ -42,14 +42,14 @@ export function ChatArea() {
               </div>
               <h2 className="mb-2 text-xl font-semibold">Finance-RAG 智能投研助手</h2>
               <p className="max-w-md text-sm text-muted-foreground">
-                基于 Docling 版面分析 + Milvus 混合检索 + Qwen 代码执行构建。
+                Agent 自主检索 · 代码沙盒计算 · 双路语义召回
                 <br />
-                上传财报 PDF 后，即可开始提问。
+                上传财报 PDF，像和研究员对话一样分析数据。
               </p>
               <div className="mt-8 grid gap-2 text-sm text-muted-foreground">
-                <Suggestion text="计算2025年深信服的毛利率" />
+                <Suggestion text="2025年深信服的营收是多少？" />
                 <Suggestion text="深信服2025年上半年营收同比增长多少？" />
-                <Suggestion text="深信服成本控制方面采取了什么措施？" />
+                <Suggestion text="深信服公司的联系人是谁？" />
               </div>
             </div>
           ) : (

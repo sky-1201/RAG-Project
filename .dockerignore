@@ -27,3 +27,12 @@ evals/
 # 6. React 前端构建依赖（构建时在容器内安装）
 frontend-react/node_modules/
 frontend-react/dist/
+
+# 7. 本地运行时产生的文件
+logs/
+*.log
+
+# 8. IDE / 工具配置
+.vscode/
+.claude/
+.pytest_cache/

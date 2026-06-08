@@ -84,11 +84,16 @@ async def chat_stream_endpoint(request: ChatRequest):
             # ==========================================
             if full_response.strip():
                 try:
+                    import asyncio
                     from app.core.dependencies import get_memory_service
                     memory_svc = get_memory_service()
-                    memory_svc.store_episode(
-                        query=request.query,
-                        answer=full_response.strip(),
+                    # fire-and-forget：扔到线程池执行，不阻塞 SSE 流结束
+                    asyncio.create_task(
+                        asyncio.to_thread(
+                            memory_svc.store_episode,
+                            query=request.query,
+                            answer=full_response.strip(),
+                        )
                     )
                 except Exception as mem_err:
                     logger.warning(f"🧠 长期记忆写入失败（不影响对话）: {mem_err}")

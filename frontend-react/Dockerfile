@@ -9,6 +9,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm config set registry https://registry.npmmirror.com && npm ci
 
+# API 密钥：构建时从外部注入，避免硬编码到源码中
+ARG VITE_API_KEY=finance-rag-dev-key
+ENV VITE_API_KEY=$VITE_API_KEY
+
 # 拷贝源码并构建
 COPY . .
 RUN npm run build

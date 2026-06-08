@@ -1,7 +1,8 @@
 import type { ChatStreamCallbacks, UploadResponse } from '@/types'
 
 const API_BASE = '/api/v1'
-const API_KEY = 'finance-rag-dev-key'
+// 构建时从环境变量注入，回退值为本地开发默认值
+const API_KEY = import.meta.env.VITE_API_KEY || 'finance-rag-dev-key'
 
 function authHeader(): Record<string, string> {
   return { Authorization: `Bearer ${API_KEY}` }

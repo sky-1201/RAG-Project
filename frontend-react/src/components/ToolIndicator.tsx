@@ -17,6 +17,11 @@ const TOOL_CONFIG: Record<string, { icon: typeof Brain; label: string; color: st
     label: '正在执行 Python 代码计算...',
     color: 'text-amber-500 border-amber-200 bg-amber-50',
   },
+  memory_retriever_tool: {
+    icon: Brain,
+    label: '正在检索长期记忆...',
+    color: 'text-purple-500 border-purple-200 bg-purple-50',
+  },
 }
 
 export function ToolIndicator({ currentTool }: ToolIndicatorProps) {

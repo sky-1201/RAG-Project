@@ -118,17 +118,34 @@ services:
       - hf_cache:/root/.cache/huggingface
 
   # ==========================================
-  # 4. React 现代化前端
+  # 4. React 前端（Vite 开发服务器，代码挂载热更新）
+  # ==========================================
   frontend-react:
     container_name: finance-rag-frontend-react
     build:
       context: ./frontend-react
       dockerfile: Dockerfile
+      target: builder            # 只用 node 阶段（含全部依赖），不进入 nginx 阶段
+      args:
+        VITE_API_KEY: ${API_SECRET_KEY:-finance-rag-dev-key}
+    command: >
+      sh -c "npx vite --host 0.0.0.0 --port 80"
     ports:
       - "8502:80"
+    environment:
+      # Docker 网络内 API 代理目标（vite.config.ts 读取此变量）
+      - BACKEND_URL=http://finance-rag-backend-v2:8000
+      # 运行时覆盖 VITE_API_KEY（dev server 动态读取，无需重新构建）
+      - VITE_API_KEY=${API_SECRET_KEY:-finance-rag-dev-key}
     depends_on:
       - backend-v2
     restart: unless-stopped
+    volumes:
+      # 挂载源码，修改即时生效（与后端热重启同理）
+      - ./frontend-react:/app
+      # 隔离 node_modules，避免 Windows 宿主机权限问题
+      - frontend_node_modules:/app/node_modules
 
 volumes:
   hf_cache:
+  frontend_node_modules:
