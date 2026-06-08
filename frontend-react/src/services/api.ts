@@ -20,6 +20,7 @@ function authHeader(): Record<string, string> {
  * - data: {"type": "error", "message": "..."}     → 服务端错误
  * - data: [DONE]                                   → 流结束
  */
+
 export async function sendChatMessage(
   query: string,
   history: { role: string; content: string }[],
