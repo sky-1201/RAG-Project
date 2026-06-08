@@ -54,8 +54,12 @@ export function ChatArea() {
             </div>
           ) : (
             <>
-              {messages.map((msg) => (
-                <ChatMessage key={msg.id} message={msg} />
+              {messages.map((msg, i) => (
+                <ChatMessage
+                  key={msg.id}
+                  message={msg}
+                  isStreaming={isLoading && i === messages.length - 1 && msg.role === 'assistant'}
+                />
               ))}
 
               {/* Agent 工具调用指示器 */}
