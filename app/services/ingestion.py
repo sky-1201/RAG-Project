@@ -84,6 +84,64 @@ class DocumentIngestionService:
             "source": file_name
         }
 
+    def _extract_metadata_via_llm(self, md_text: str) -> dict:
+        """
+        当文件名解析不出公司名或年份时，用 LLM 从 PDF 正文前几页提取。
+        用便宜的 qwen-turbo 模型，一次调用不到 0.001 元。
+
+        返回: {"company": str|null, "year": str|null}
+        """
+        import json as _json
+        import dashscope
+
+        # 截取文档预览文本（前 N 个字符，通常是封面页和目录）
+        preview = md_text[:settings.METADATA_LLM_PREVIEW_CHARS]
+
+        prompt = f"""你是一个专业的文档信息提取工具。请从以下财报/文档的文本片段中提取信息。
+
+规则：
+1. 公司名称：提取文档中提到的公司全称或常用简称。
+   例如看到"深信服科技股份有限公司"，返回"深信服"。
+   如果无法确定公司名称，返回 null。
+2. 报告年份：提取文档对应的财务报告年份（四位数字，如 2025）。
+   财报通常会在封面页标注"2025年年度报告"或"截至2025年6月30日"。
+   如果无法确定年份，返回 null。
+
+严格要求：只输出一个 JSON 对象，不要输出其他任何内容。
+格式: {{"company": "公司名", "year": "2025"}}
+
+以下是文档文本的前 {settings.METADATA_LLM_PREVIEW_CHARS} 个字符：
+---
+{preview}
+---"""
+
+        try:
+            response = dashscope.Generation.call(
+                model=settings.METADATA_LLM_MODEL,
+                prompt=prompt,
+                result_format="message",
+            )
+
+            if response.status_code == 200:
+                raw_text = response.output.choices[0].message.content.strip()
+                # 清理 LLM 可能多输出的 markdown 代码块标记
+                raw_text = raw_text.replace("```json", "").replace("```", "").strip()
+                result = _json.loads(raw_text)
+                logger.info(f"🤖 LLM 元数据提取结果: {result}")
+                return {
+                    "company": result.get("company") or None,
+                    "year": result.get("year") or None,
+                }
+            else:
+                logger.warning(
+                    f"⚠️ LLM 元数据提取 API 返回 {response.status_code}: {response.message}"
+                )
+                return {"company": None, "year": None}
+
+        except Exception as e:
+            logger.warning(f"⚠️ LLM 元数据提取失败，回退到文件名解析结果: {e}")
+            return {"company": None, "year": None}
+
     def run_pipeline(self, pdf_path: str, original_filename: str = None,
                      page_range: Optional[Tuple[int, int]] = None,
                      progress_callback: callable = None):
@@ -170,6 +228,26 @@ class DocumentIngestionService:
                     safe_parent_docs.append(doc)
 
             file_meta = self._extract_metadata(display_name)
+
+            # ==========================================
+            # 🆕 LLM 兜底：文件名解析失败时，从正文前几页提取
+            # ==========================================
+            if settings.METADATA_LLM_ENABLED:
+                need_llm_company = file_meta["company"] in ("未知", "")
+                need_llm_year = file_meta["year"] == "未知"
+                if need_llm_company or need_llm_year:
+                    logger.info(
+                        f"🤖 文件名解析不完整 (company='{file_meta['company']}', year='{file_meta['year']}')，"
+                        f"启动 LLM 兜底提取..."
+                    )
+                    llm_meta = self._extract_metadata_via_llm(md_text)
+                    if need_llm_company and llm_meta.get("company"):
+                        file_meta["company"] = llm_meta["company"]
+                        logger.info(f"✅ LLM 补充公司名: {llm_meta['company']}")
+                    if need_llm_year and llm_meta.get("year"):
+                        file_meta["year"] = llm_meta["year"]
+                        logger.info(f"✅ LLM 补充年份: {llm_meta['year']}")
+            # ==========================================
 
             child_docs = []
 

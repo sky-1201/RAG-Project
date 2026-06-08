@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.prompts.loader import load_prompt
 from app.tools.finance_repl import python_repl_tool
 from app.tools.retriever_tool import financial_retriever_tool
+from app.tools.memory_tool import memory_retriever_tool
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ class FinancialAgentService:
             temperature=settings.LLM_TEMPERATURE,
             streaming=True
         )
-        self.tools = [financial_retriever_tool, python_repl_tool]
+        self.tools = [financial_retriever_tool, python_repl_tool, memory_retriever_tool]
 
         # 从 YAML 模板加载 system prompt（修改模板后重启即可生效）
         prompt_config = load_prompt("financial_agent")
@@ -38,8 +39,16 @@ class FinancialAgentService:
         messages.append(("user", query))
 
         try:
-            response = self.agent_executor.invoke({"messages": messages})
+            response = self.agent_executor.invoke(
+                {"messages": messages},
+                config={"recursion_limit": settings.AGENT_MAX_STEPS},
+            )
             return response["messages"][-1].content
+        except RecursionError:
+            logger.error(
+                f"🛑 Agent 达到最大步数限制 ({settings.AGENT_MAX_STEPS})，任务可能过于复杂。"
+            )
+            return f"分析任务过于复杂，超过了推理步数上限 ({settings.AGENT_MAX_STEPS} 步)。请简化问题后重试。"
         except Exception as e:
             logger.error(f"❌ Agent 崩溃: {str(e)}", exc_info=True)
             return "分析系统遇到内部错误，请稍后重试。"

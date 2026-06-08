@@ -15,11 +15,12 @@ from sqlalchemy.sql import func
 load_dotenv()
 
 # 从环境变量中动态读取密码和地址
-PG_USER = os.getenv("PG_USER", "rag_user")
-PG_PASSWORD = os.getenv("PG_PASSWORD", "rag_password")
-PG_HOST = os.getenv("PG_HOST", "127.0.0.1")
-PG_PORT = os.getenv("PG_PORT", "5432")
-PG_DB = os.getenv("PG_DB", "rag_db")
+# 兼容两种命名规范：项目自定义 (PG_*) 和 Zeabur 平台注入 (POSTGRES_*)
+PG_USER = os.getenv("PG_USER") or os.getenv("POSTGRES_USER") or "rag_user"
+PG_PASSWORD = os.getenv("PG_PASSWORD") or os.getenv("POSTGRES_PASSWORD") or "rag_password"
+PG_HOST = os.getenv("PG_HOST") or os.getenv("POSTGRES_HOST") or "127.0.0.1"
+PG_PORT = os.getenv("PG_PORT") or os.getenv("POSTGRES_PORT") or "5432"
+PG_DB = os.getenv("PG_DB") or os.getenv("POSTGRES_DB") or os.getenv("POSTGRES_DATABASE") or "rag_db"
 
 # 动态拼接数据库连接字符串
 SQLALCHEMY_DATABASE_URL = f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{PG_DB}"
@@ -79,6 +80,16 @@ class ParentDocument(Base):
     content = Column(Text, nullable=False)
     meta_data = Column("metadata", JSONB)
 
+# Agent 长期记忆表（跨对话语义检索）
+class LongTermMemory(Base):
+    __tablename__ = "long_term_memories"
+    id = Column(String, primary_key=True, index=True)
+    user_query = Column(Text, nullable=False)
+    assistant_answer = Column(Text, nullable=False)
+    memory_text = Column(Text, nullable=False)  # "Q: ...\nA: ..." 拼接后用于向量化
+    meta_data = Column("metadata", JSONB, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 # 文件上传去重登记表
 class UploadedFile(Base):
     __tablename__ = "uploaded_files_v3"
@@ -98,7 +109,7 @@ def init_db(retries: int = 5, delay: float = 2.0):
     for attempt in range(1, retries + 1):
         try:
             Base.metadata.create_all(bind=engine)
-            print("✅ 数据库表 `parent_documents` 准备就绪！")
+            print("✅ 数据库表结构初始化完成！")
             return
         except Exception as e:
             if attempt < retries:

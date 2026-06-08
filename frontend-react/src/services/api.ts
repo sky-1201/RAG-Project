@@ -15,6 +15,7 @@ function authHeader(): Record<string, string> {
  * - data: {"type": "chunk", "content": "文本"}    → LLM 输出的文本块
  * - data: {"type": "tool_start", "tool": "..."}   → Agent 开始调用工具
  * - data: {"type": "tool_end",   "tool": "..."}   → Agent 工具调用完成
+ * - data: {"type": "sources", "sources": [...]}   → 检索工具返回的引用来源
  * - data: {"type": "error", "message": "..."}     → 服务端错误
  * - data: [DONE]                                   → 流结束
  */
@@ -75,6 +76,9 @@ export async function sendChatMessage(
                 break
               case 'tool_end':
                 callbacks.onToolEnd(data.tool)
+                break
+              case 'sources':
+                callbacks.onSources(data.sources ?? [])
                 break
               case 'error':
                 callbacks.onError(new Error(data.message))

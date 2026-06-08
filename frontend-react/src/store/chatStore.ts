@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { sendChatMessage, saveConversation, updateConversation } from '@/services/api'
-import type { Message, UploadStatus } from '@/types'
+import type { Message, UploadStatus, SourceInfo } from '@/types'
 
 interface ChatState {
   messages: Message[]
@@ -48,7 +48,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   lastUploadFilename: null,
 
   sendMessage: async (query: string) => {
-    const { messages, abortController: oldAbort, currentConversationId } = get()
+    const { messages, abortController: oldAbort } = get()
 
     if (oldAbort) oldAbort.abort()
 
@@ -94,6 +94,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
               state.currentTool === _tool ? { currentTool: null } : {}
             )
           }, 400)
+        },
+
+        onSources: (sources: SourceInfo[]) => {
+          // 把引用来源绑定到当前 assistant 消息上
+          const { messages: current } = get()
+          const updated = [...current]
+          const lastIdx = updated.length - 1
+          if (updated[lastIdx]?.role === 'assistant') {
+            updated[lastIdx] = { ...updated[lastIdx], sources }
+            set({ messages: updated })
+          }
         },
 
         onDone: () => {

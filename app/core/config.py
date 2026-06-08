@@ -42,15 +42,24 @@ class Settings(BaseSettings):
     EMBEDDING_MAX_TEXT_LENGTH: int = 8000  # 单条文本 Embedding 截断长度
     EMBEDDING_RETRY_TIMES: int = 3     # API 调用失败重试次数
 
+    # --- 元数据 LLM 兜底提取（文件名解析失败时自动触发）
+    METADATA_LLM_ENABLED: bool = True       # 是否启用 LLM 从正文提取公司名/年份
+    METADATA_LLM_MODEL: str = "qwen-turbo"  # 用便宜的模型即可（只需提取两个字段）
+    METADATA_LLM_PREVIEW_CHARS: int = 2000  # 取 PDF 前 N 个字符送给 LLM
+
     # --- 双路检索配置
     HYBRID_DENSE_LIMIT: int = 60       # Dense 召回候选数
     HYBRID_SPARSE_LIMIT: int = 40      # Sparse 召回候选数
     HYBRID_RRF_K: int = 60             # RRF 融合参数
     HYBRID_TOP_K: int = 15             # 融合后保留子块数
-    RERANK_TOP_N: int = 3              # Rerank 后保留父块数
+    RERANK_TOP_N: int = 5              # Rerank 后保留父块数
 
     # --- Agent 配置
     LLM_TEMPERATURE: float = 0.01
+    AGENT_MAX_STEPS: int = 10              # Agent 最大执行步数（防止无限循环）
+    MEMORY_ENABLED: bool = True             # 是否启用长期记忆（跨对话语义检索）
+    MEMORY_COLLECTION_NAME: str = "long_term_memories"
+    MEMORY_SEARCH_TOP_K: int = 3            # 记忆召回数量
 
     API_HOST: str = "127.0.0.1"
     API_PORT: int = 8000
