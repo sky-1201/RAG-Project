@@ -102,6 +102,9 @@ services:
       - PG_HOST=finance-rag-postgres-v2
       - PG_PORT=5432      # 容器内部用回原生 5432
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      # 让容器直连阿里云 API，不走宿主机代理（避免 SSL 握手被代理中断）
+      - NO_PROXY=dashscope.aliyuncs.com,aliyuncs.com
+      - no_proxy=dashscope.aliyuncs.com,aliyuncs.com
       # HuggingFace 镜像加速（国内网络必需）
       - HF_ENDPOINT=https://hf-mirror.com
     env_file:

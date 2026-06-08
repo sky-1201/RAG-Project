@@ -39,8 +39,16 @@ class FinancialAgentService:
         messages.append(("user", query))
 
         try:
-            response = self.agent_executor.invoke({"messages": messages})
+            response = self.agent_executor.invoke(
+                {"messages": messages},
+                config={"recursion_limit": settings.AGENT_MAX_STEPS},
+            )
             return response["messages"][-1].content
+        except RecursionError:
+            logger.error(
+                f"🛑 Agent 达到最大步数限制 ({settings.AGENT_MAX_STEPS})，任务可能过于复杂。"
+            )
+            return f"分析任务过于复杂，超过了推理步数上限 ({settings.AGENT_MAX_STEPS} 步)。请简化问题后重试。"
         except Exception as e:
             logger.error(f"❌ Agent 崩溃: {str(e)}", exc_info=True)
             return "分析系统遇到内部错误，请稍后重试。"

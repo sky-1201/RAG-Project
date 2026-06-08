@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import type { Message } from '@/types'
-import { Bot, User } from 'lucide-react'
+import { Bot, User, FileText } from 'lucide-react'
 
 interface ChatMessageProps {
   message: Message
@@ -35,6 +35,25 @@ export function ChatMessage({ message }: ChatMessageProps) {
         <div className="whitespace-pre-wrap break-words">
           {message.content || (isUser ? '' : '▌')}
         </div>
+
+        {/* 🆕 引用来源（仅非空的 assistant 消息展示） */}
+        {!isUser && message.sources && message.sources.length > 0 && (
+          <div className="mt-3 border-t border-border/50 pt-2">
+            <span className="text-xs text-muted-foreground">📎 参考来源：</span>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {message.sources.map((s) => (
+                <span
+                  key={s.file}
+                  className="inline-flex items-center gap-1 rounded-full bg-background px-2 py-0.5 text-xs text-muted-foreground border"
+                  title={`相关度分数: ${s.score}`}
+                >
+                  <FileText className="h-3 w-3" />
+                  {s.file}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
