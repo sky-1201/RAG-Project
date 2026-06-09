@@ -98,6 +98,8 @@ class UploadedFile(Base):
     file_hash = Column(String, primary_key=True, index=True)
     # 记录文件名，方便以后查看
     file_name = Column(String, nullable=False)
+    # 文件在磁盘上的存储路径（如 data/raw/a1b2c3.pdf）
+    file_path = Column(String, nullable=True)
     # 自动记录上传的时间
     upload_time = Column(DateTime(timezone=True), server_default=func.now())
 

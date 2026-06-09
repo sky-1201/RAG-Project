@@ -1,10 +1,11 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
-import type { Message } from '@/types'
+import type { Message, SourceInfo } from '@/types'
 import { Bot, User, FileText } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Components } from 'react-markdown'
+import { useChatStore } from '@/store/chatStore'
 
 interface ChatMessageProps {
   message: Message
@@ -121,19 +122,40 @@ export function ChatMessage({ message, isStreaming = false }: ChatMessageProps) 
             <span className="text-xs text-muted-foreground">📎 参考来源：</span>
             <div className="mt-1 flex flex-wrap gap-1.5">
               {message.sources.map((s) => (
-                <span
-                  key={s.file}
-                  className="inline-flex items-center gap-1 rounded-full bg-background px-2 py-0.5 text-xs text-muted-foreground border"
-                  title={`相关度分数: ${s.score}`}
-                >
-                  <FileText className="h-3 w-3" />
-                  {s.file}
-                </span>
+                <SourceTag key={s.file} source={s} />
               ))}
             </div>
           </div>
         )}
       </div>
     </div>
+  )
+}
+
+/** 来源标签：悬浮预览命中片段，点击打开 PDF 原文并跳转到对应页码 */
+function SourceTag({ source }: { source: SourceInfo }) {
+  const openPdfViewer = useChatStore((s) => s.openPdfViewer)
+
+  return (
+    <span
+      className="group relative inline-flex items-center gap-1 rounded-full bg-background px-2 py-0.5 text-xs text-muted-foreground border cursor-pointer hover:border-primary/50 hover:text-primary transition-colors"
+      onClick={(e) => {
+        e.stopPropagation()
+        if (source.file_hash) {
+          openPdfViewer(source.file_hash, source.file, source.page_number || 1)
+        }
+      }}
+    >
+      <FileText className="h-3 w-3" />
+      {source.file}
+      {source.page_number ? ` · P${source.page_number}` : ''}
+
+      {/* 悬浮预览卡片（显示在标签下方，避开正文） */}
+      {source.snippet && (
+        <span className="pointer-events-none absolute top-full left-0 mt-2 hidden group-hover:block z-50 w-72 rounded-lg border border-border bg-popover p-3 text-xs leading-relaxed text-popover-foreground shadow-md">
+          <span className="line-clamp-6">{source.snippet}</span>
+        </span>
+      )}
+    </span>
   )
 }

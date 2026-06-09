@@ -99,6 +99,8 @@ export function FileUpload() {
     (e: ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
       if (file) handleFileSelect(file)
+      // 重置 input 值，否则选择同一个文件不会触发 onChange
+      e.target.value = ''
     },
     [handleFileSelect]
   )

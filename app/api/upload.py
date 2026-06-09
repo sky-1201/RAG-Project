@@ -5,11 +5,13 @@ import shutil
 import uuid
 
 from fastapi import APIRouter, HTTPException, File, UploadFile, BackgroundTasks
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from app.services.ingestion import DocumentIngestionService
 from app.core.config import settings
 from app.core.exceptions import IngestionError, PDFParseError, DuplicateFileError
 from app.services.progress import create_task, update_progress, mark_success, mark_error, get_progress
+from app.database import get_db_session, UploadedFile
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -101,3 +103,38 @@ def get_upload_progress(task_id: str):
     if progress is None:
         raise HTTPException(status_code=404, detail="任务不存在或已过期")
     return progress
+
+
+# ==========================================
+# 文件列表 & PDF 原文查看
+# ==========================================
+
+@router.get("/files", summary="列出已入库的 PDF 文件")
+def list_files():
+    """返回所有已入库的 PDF 文件元信息"""
+    with get_db_session() as db:
+        records = (
+            db.query(UploadedFile)
+            .order_by(UploadedFile.upload_time.desc())
+            .all()
+        )
+        return [
+            {
+                "file_hash": r.file_hash,
+                "file_name": r.file_name,
+                "upload_time": r.upload_time.isoformat() if r.upload_time else None,
+            }
+            for r in records
+        ]
+
+
+@router.get("/files/{file_hash}/view", summary="在线查看 PDF 原文")
+def view_pdf(file_hash: str):
+    """通过文件 hash 返回 PDF 文件流，浏览器可直接渲染"""
+    with get_db_session() as db:
+        record = db.query(UploadedFile).filter(UploadedFile.file_hash == file_hash).first()
+        if not record:
+            raise HTTPException(status_code=404, detail="文件不存在")
+        if not record.file_path or not os.path.exists(record.file_path):
+            raise HTTPException(status_code=404, detail="文件已被删除或路径无效")
+        return FileResponse(record.file_path, media_type="application/pdf")

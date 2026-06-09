@@ -84,6 +84,23 @@ class DocumentIngestionService:
             "source": file_name
         }
 
+    def _find_page_number(self, chunk_text: str, page_texts: dict) -> int:
+        """
+        通过文本匹配确定一段文字来自 PDF 的哪一页。
+        策略：先用子串精确匹配，失败后用字符重叠度打分。
+        """
+        search = chunk_text[:300].strip()
+        if not search:
+            return 1
+        best_page, best_score = 1, 0
+        for page_num, page_text in page_texts.items():
+            if search in page_text:
+                return page_num  # 精确命中，直接返回
+            overlap = sum(1 for c in search if c in page_text)
+            if overlap > best_score:
+                best_score, best_page = overlap, page_num
+        return best_page
+
     def _extract_metadata_via_llm(self, md_text: str) -> dict:
         """
         当文件名解析不出公司名或年份时，用 LLM 从 PDF 正文前几页提取。
@@ -178,10 +195,19 @@ class DocumentIngestionService:
             md_text = ""
 
             try:
-                # 1. 先用极其轻量的 pypdf 看一下总页数
+                # 1. 先用极其轻量的 pypdf 看一下总页数，同时提取每页文本用于页码追踪
                 reader = PdfReader(path)
                 total_pages = len(reader.pages)
                 logger.info(f"📄 检测到该文件共有 {total_pages} 页，准备切片解析...")
+
+                # 提取每页纯文本（轻量操作，用于后续 chunk 页码匹配）
+                page_texts = {}
+                for i, page in enumerate(reader.pages):
+                    try:
+                        txt = page.extract_text() or ""
+                    except Exception:
+                        txt = ""
+                    page_texts[i + 1] = txt
 
                 # 2. 每 N 页为一个批次，防止内存爆炸
                 batch_pages = settings.PDF_BATCH_PAGES
@@ -228,6 +254,7 @@ class DocumentIngestionService:
                     safe_parent_docs.append(doc)
 
             file_meta = self._extract_metadata(display_name)
+            file_meta["file_hash"] = file_md5  # 供检索结果回传，前端 PDF 查看器需要
 
             # ==========================================
             # 🆕 LLM 兜底：文件名解析失败时，从正文前几页提取
@@ -264,6 +291,10 @@ class DocumentIngestionService:
                     c_doc.metadata.update(file_meta)  # 确保子块也有年份等基础信息
                     c_doc.metadata["parent_id"] = parent_id
                     c_doc.metadata["doc_level"] = "child"
+                    # 标注来源页码（PDF 原文查看/高亮跳转的基础）
+                    page_num = self._find_page_number(c_doc.page_content, page_texts)
+                    c_doc.metadata["page_number"] = page_num
+                    p_doc.metadata.setdefault("page_number", page_num)  # 父块也记一份，方便检索结果回传
                     child_docs.append(c_doc)
 
             # ==========================================
@@ -421,7 +452,11 @@ class DocumentIngestionService:
             # 所有步骤都成功后，将文件指纹存入
             with get_db_session() as db:
                 try:
-                    new_upload = UploadedFile(file_hash=file_md5, file_name=display_name)
+                    new_upload = UploadedFile(
+                        file_hash=file_md5,
+                        file_name=display_name,
+                        file_path=str(path),  # 记录文件在磁盘上的位置，供 PDF 查看 API 使用
+                    )
                     db.add(new_upload)
                     db.commit()
                     logger.info(f"✅ 文件指纹 {file_md5} 已登记，未来将自动拦截该文件的重复上传。")

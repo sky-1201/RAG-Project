@@ -31,7 +31,14 @@ def financial_retriever_tool(query: str, company: str = None, year: str = None) 
         for i, d in enumerate(docs):
             source = d.metadata.get("source", "未知文件")
             score = d.metadata.get("rerank_score", "N/A")
-            context_parts.append(f"--- 证据 {i + 1} [来源: {source}, 相关度: {score}] ---\n{d.page_content}\n")
+            page = d.metadata.get("page_number", "")
+            file_hash = d.metadata.get("file_hash", "")
+            context_parts.append(
+                f"--- 证据 {i + 1} [来源: {source}, 相关度: {score}"
+                + (f", 页码: {page}" if page else "")
+                + (f", hash: {file_hash}" if file_hash else "")
+                + f"] ---\n{d.page_content}\n"
+            )
 
         return "\n".join(context_parts)
 

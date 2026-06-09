@@ -107,6 +107,7 @@ services:
       - no_proxy=dashscope.aliyuncs.com,aliyuncs.com
       # HuggingFace 镜像加速（国内网络必需）
       - HF_ENDPOINT=https://hf-mirror.com
+      
     env_file:
       - .env
     depends_on:

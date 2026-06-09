@@ -4,7 +4,7 @@ const API_BASE = '/api/v1'
 // 构建时从环境变量注入，回退值为本地开发默认值
 const API_KEY = import.meta.env.VITE_API_KEY || 'finance-rag-dev-key'
 
-function authHeader(): Record<string, string> {
+export function authHeader(): Record<string, string> {
   return { Authorization: `Bearer ${API_KEY}` }
 }
 
@@ -202,4 +202,25 @@ export async function getUploadProgress(taskId: string): Promise<TaskProgress> {
   const res = await fetch(`${API_BASE}/upload/progress/${taskId}`, { headers: authHeader() })
   if (!res.ok) throw new Error('获取进度失败')
   return res.json()
+}
+
+// ==========================================
+// 文件列表 & PDF 原文查看
+// ==========================================
+
+export interface FileInfo {
+  file_hash: string
+  file_name: string
+  upload_time: string
+}
+
+export async function listFiles(): Promise<FileInfo[]> {
+  const res = await fetch(`${API_BASE}/files`, { headers: authHeader() })
+  if (!res.ok) throw new Error('获取文件列表失败')
+  return res.json()
+}
+
+/** 返回 PDF 原文查看的完整 URL（可直接作为 <iframe> src 或链接） */
+export function getFileViewUrl(fileHash: string): string {
+  return `${API_BASE}/files/${fileHash}/view`
 }

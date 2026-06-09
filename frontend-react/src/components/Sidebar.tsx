@@ -8,7 +8,9 @@ import {
   listConversations,
   getConversation,
   deleteConversation,
+  listFiles,
   type ConversationSummary,
+  type FileInfo,
 } from '@/services/api'
 import {
   Plus,
@@ -18,16 +20,18 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function Sidebar() {
-  const { messages, clearMessages, setMessages, setConversationId, currentConversationId } =
+  const { messages, clearMessages, setMessages, setConversationId, currentConversationId, openPdfViewer } =
     useChatStore()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isOnline, setIsOnline] = useState(false)
   const [convs, setConvs] = useState<ConversationSummary[]>([])
   const [loadingConvId, setLoadingConvId] = useState<string | null>(null)
+  const [files, setFiles] = useState<FileInfo[]>([])
 
   // 检测后端 — 轻量 HEAD 请求，不触发 Agent
   useEffect(() => {
@@ -61,6 +65,28 @@ export function Sidebar() {
       refreshConvList()
     }
   }, [messages.length, currentConversationId, refreshConvList])
+
+  // 加载已入库文件列表
+  const refreshFileList = useCallback(async () => {
+    try {
+      const data = await listFiles()
+      setFiles(data)
+    } catch {
+      // 后端不可用
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshFileList()
+  }, [refreshFileList])
+
+  // 上传完成后自动刷新文件列表
+  const uploadStatus = useChatStore((s) => s.uploadStatus)
+  useEffect(() => {
+    if (uploadStatus === 'success') {
+      refreshFileList()
+    }
+  }, [uploadStatus, refreshFileList])
 
   // 加载历史对话
   const handleLoadConv = async (id: string) => {
@@ -204,6 +230,23 @@ export function Sidebar() {
           知识库管理
         </h2>
         <FileUpload />
+
+        {/* 已入库文件列表 */}
+        {files.length > 0 && (
+          <div className="mt-3 space-y-1">
+            {files.map((f) => (
+              <button
+                key={f.file_hash}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent"
+                onClick={() => openPdfViewer(f.file_hash, f.file_name, 1)}
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="truncate flex-1">{f.file_name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
           建议上传类似「深信服2025年半年度报告.pdf」命名格式的文件，以便系统自动提取年份与公司信息。
         </p>

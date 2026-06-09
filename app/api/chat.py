@@ -16,17 +16,32 @@ router = APIRouter()
 def _parse_sources(output_text: str) -> list[dict]:
     """
     从检索工具的输出中提取引用来源信息。
-    工具输出格式: --- 证据 N [来源: 文件名, 相关度: 0.95] ---
+    工具输出格式: --- 证据 N [来源: 文件名, 相关度: 0.95, 页码: 42, hash: abc123] ---
 
-    返回去重后的来源列表: [{"file": "深信服2025年年度报告.pdf", "score": "0.95"}, ...]
+    返回去重后的来源列表，附带页码、文件哈希和原文片段预览。
     """
-    matches = re.findall(r'\[来源: (.*?), 相关度: (.*?)\]', output_text)
-    seen = set()
+    # 按证据块拆分
+    blocks = re.split(r'--- 证据 \d+ \[(.*?)\] ---', output_text)
+    # blocks[0] = 前言（无效），之后交替: metadata, content, metadata, content...
     sources = []
-    for file_name, score in matches:
-        if file_name not in seen:
-            seen.add(file_name)
-            sources.append({"file": file_name, "score": score})
+    for i in range(1, len(blocks), 2):
+        meta_str = blocks[i]
+        content = blocks[i + 1].strip() if i + 1 < len(blocks) else ""
+
+        file_match = re.search(r'来源:\s*(.*?)(?:,\s*相关度|$)', meta_str)
+        score_match = re.search(r'相关度:\s*([\d.]+)', meta_str)
+        page_match = re.search(r'页码:\s*(\d+)', meta_str)
+        hash_match = re.search(r'hash:\s*(\w+)', meta_str)
+
+        file_name = file_match.group(1).strip() if file_match else "未知文件"
+        # 不按文件名去重 — 所有证据块逐一展示，每条可独立预览和跳转页码
+        sources.append({
+            "file": file_name,
+            "score": score_match.group(1) if score_match else "N/A",
+            "page_number": int(page_match.group(1)) if page_match else 1,
+            "file_hash": hash_match.group(1) if hash_match else "",
+            "snippet": content[:200] if content else "",
+        })
     return sources
 
 

@@ -1,5 +1,6 @@
 import { Sidebar, SidebarToggle } from '@/components/Sidebar'
 import { ChatArea } from '@/components/ChatArea'
+import { PDFViewer } from '@/components/PDFViewer'
 import { Toaster } from 'sonner'
 
 export default function App() {
@@ -15,6 +16,9 @@ export default function App() {
       <main className="flex flex-1 flex-col overflow-hidden">
         <ChatArea />
       </main>
+
+      {/* PDF 原文查看器（全屏模态） */}
+      <PDFViewer />
 
       {/* Toast 通知 (文件上传反馈) */}
       <Toaster
