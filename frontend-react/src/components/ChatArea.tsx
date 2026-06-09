@@ -1,13 +1,44 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useChatStore } from '@/store/chatStore'
 import { ChatMessage } from '@/components/ChatMessage'
 import { ChatInput } from '@/components/ChatInput'
 import { ToolIndicator } from '@/components/ToolIndicator'
-import { Bot, Sparkles } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Bot, Sparkles, Sun, Moon } from 'lucide-react'
+
+/** 暗色模式切换：读写 <html> 的 dark class + localStorage 持久化 */
+function useDarkMode() {
+  const [dark, setDark] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return document.documentElement.classList.contains('dark')
+  })
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (dark) {
+      root.classList.add('dark')
+      localStorage.setItem('theme', 'dark')
+    } else {
+      root.classList.remove('dark')
+      localStorage.setItem('theme', 'light')
+    }
+  }, [dark])
+
+  // 页面加载时从 localStorage 恢复
+  useEffect(() => {
+    const saved = localStorage.getItem('theme')
+    if (saved === 'dark') setDark(true)
+    else if (saved === 'light') setDark(false)
+    else if (window.matchMedia('(prefers-color-scheme: dark)').matches) setDark(true)
+  }, [])
+
+  return { dark, toggle: () => setDark((d) => !d) }
+}
 
 export function ChatArea() {
   const { messages, isLoading, currentTool } = useChatStore()
+  const { dark, toggle } = useDarkMode()
   const bottomRef = useRef<HTMLDivElement>(null)
 
   // 自动滚动到底部
@@ -26,6 +57,15 @@ export function ChatArea() {
           <h1 className="text-base font-semibold">智能金融投研 Agent</h1>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={toggle}
+            title={dark ? '切换浅色模式' : '切换暗色模式'}
+          >
+            {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
           <span className="flex h-2 w-2 rounded-full bg-emerald-500" title="后端已连接" />
           <span className="text-xs text-muted-foreground">qwen-max</span>
         </div>

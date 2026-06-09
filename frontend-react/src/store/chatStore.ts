@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { sendChatMessage, saveConversation, updateConversation } from '@/services/api'
+import { sendChatMessage, saveConversation, updateConversation, autoTitle } from '@/services/api'
 import type { Message, UploadStatus, SourceInfo } from '@/types'
 
 interface ChatState {
@@ -176,6 +176,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (messages.length === 0) return
 
     const title = getTitle(messages)
+    const isFirstExchange = !currentConversationId
 
     try {
       if (currentConversationId) {
@@ -183,6 +184,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       } else {
         const result = await saveConversation(title, messages)
         set({ currentConversationId: result.id })
+      }
+
+      // 新对话的首轮问答结束后，用 qwen-turbo 自动生成简短标题
+      if (isFirstExchange) {
+        const id = currentConversationId || get().currentConversationId
+        if (id) {
+          autoTitle(id).catch(() => {})
+        }
       }
     } catch {
       // 静默失败，不影响聊天体验

@@ -1,10 +1,12 @@
 """对话历史 CRUD 接口"""
 import logging
 import uuid
+import dashscope
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.database import get_db_session, Conversation
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -98,3 +100,44 @@ def delete_conversation(conv_id: str):
         db.delete(conv)
         db.commit()
     return {"status": "deleted"}
+
+
+@router.post("/conversations/{conv_id}/auto-title", summary="自动生成对话标题")
+def auto_title(conv_id: str):
+    """用 qwen-turbo 根据第一条问答生成 10 字以内的摘要标题"""
+    with get_db_session() as db:
+        conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
+        if not conv:
+            raise HTTPException(status_code=404, detail="对话不存在")
+
+        messages = conv.messages or []
+        # 取第一轮 Q&A
+        user_msg = next((m["content"] for m in messages if m.get("role") == "user"), "")
+        assistant_msg = next((m["content"] for m in messages if m.get("role") == "assistant"), "")
+
+        if not user_msg:
+            return {"title": conv.title}
+
+        prompt = f"""根据以下对话，生成一个10字以内的简短标题（不要引号、不要句号）：
+用户问：{user_msg[:200]}
+AI答：{assistant_msg[:200]}
+标题："""
+
+        try:
+            response = dashscope.Generation.call(
+                model=settings.METADATA_LLM_MODEL,  # qwen-turbo，便宜
+                prompt=prompt,
+                result_format="message",
+            )
+            if response.status_code == 200:
+                title = response.output.choices[0].message.content.strip()
+                title = title.replace("《", "").replace("》", "").replace('"', '').replace("'", "")
+                if len(title) > 20:
+                    title = title[:20]
+                conv.title = title
+                db.commit()
+                return {"title": title}
+        except Exception:
+            pass  # 静默失败，不影响对话
+
+        return {"title": conv.title}

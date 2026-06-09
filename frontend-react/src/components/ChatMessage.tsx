@@ -121,8 +121,8 @@ export function ChatMessage({ message, isStreaming = false }: ChatMessageProps) 
           <div className="mt-3 border-t border-border/50 pt-2">
             <span className="text-xs text-muted-foreground">📎 参考来源：</span>
             <div className="mt-1 flex flex-wrap gap-1.5">
-              {message.sources.map((s) => (
-                <SourceTag key={s.file} source={s} />
+              {message.sources.map((s, i) => (
+                <SourceTag key={`src-${i}-${s.page_number || 0}`} source={s} />
               ))}
             </div>
           </div>
@@ -150,9 +150,9 @@ function SourceTag({ source }: { source: SourceInfo }) {
       {source.file}
       {source.page_number ? ` · P${source.page_number}` : ''}
 
-      {/* 悬浮预览卡片（显示在标签下方，避开正文） */}
+      {/* 悬浮预览卡片（向上弹出，避免底部超视口导致页面跳动） */}
       {source.snippet && (
-        <span className="pointer-events-none absolute top-full left-0 mt-2 hidden group-hover:block z-50 w-72 rounded-lg border border-border bg-popover p-3 text-xs leading-relaxed text-popover-foreground shadow-md">
+        <span className="pointer-events-none absolute bottom-full right-0 mb-2 hidden group-hover:block z-50 w-80 rounded-lg border-2 border-gray-300 bg-white dark:bg-gray-800 dark:border-gray-600 p-3 text-xs leading-relaxed text-foreground shadow-xl">
           <span className="line-clamp-6">{source.snippet}</span>
         </span>
       )}

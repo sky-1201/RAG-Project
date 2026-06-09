@@ -100,10 +100,11 @@ export function Sidebar() {
           role: m.role as 'user' | 'assistant',
           content: m.content,
           timestamp: m.timestamp,
+          sources: (m as any).sources || undefined,
         }))
       )
     } catch {
-      // ignore
+      // 加载失败静默处理
     } finally {
       setLoadingConvId(null)
     }
@@ -116,8 +117,7 @@ export function Sidebar() {
   }
 
   // 删除对话
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleDelete = async (id: string) => {
     try {
       await deleteConversation(id)
       if (currentConversationId === id) {
@@ -176,26 +176,22 @@ export function Sidebar() {
             {convs.map((c) => (
               <div
                 key={c.id}
-                className={cn(
-                  'group flex items-center gap-2 rounded-md px-3 py-2 cursor-pointer transition-colors hover:bg-accent',
-                  currentConversationId === c.id && 'bg-accent'
-                )}
-                onClick={() => handleLoadConv(c.id)}
+                className="group relative flex items-center rounded-md transition-colors hover:bg-accent"
               >
-                {loadingConvId === c.id ? (
-                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
-                ) : (
-                  <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
-                )}
-                <span className="truncate text-xs flex-1">{c.title}</span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={(e) => handleDelete(c.id, e)}
+                <div
+                  className={cn(
+                    'flex flex-1 items-center gap-2 rounded-md pl-3 py-2 cursor-pointer min-w-0',
+                    currentConversationId === c.id && 'bg-accent'
+                  )}
+                  onClick={() => handleLoadConv(c.id)}
                 >
-                  <Trash2 className="h-3 w-3 text-muted-foreground" />
-                </Button>
+                  {loadingConvId === c.id ? (
+                    <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+                  ) : (
+                    <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  )}
+                  <span className="truncate text-xs flex-1">{c.title}</span>
+                </div>
               </div>
             ))}
           </div>
@@ -205,22 +201,48 @@ export function Sidebar() {
       <Separator />
 
       {/* 当前对话 */}
-      <div className="px-3 py-2">
-        <div className="flex items-center gap-2 rounded-md bg-accent/50 px-3 py-2">
-          <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span className="truncate text-xs">{convTitle}</span>
-          {messages.length > 0 && (
+      {currentConversationId && (
+        <div className="px-3 py-2">
+          <div className="flex items-center gap-2 rounded-md bg-accent/50 px-3 py-2">
+            <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="truncate text-xs">{convTitle}</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto h-6 w-6 shrink-0 text-destructive hover:text-destructive"
+              onClick={() => handleDelete(currentConversationId)}
+              title="删除此对话"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              onClick={handleNewConv}
+              title="新建对话"
+            >
+              <Plus className="h-3 w-3 text-muted-foreground" />
+            </Button>
+          </div>
+        </div>
+      )}
+      {!currentConversationId && messages.length > 0 && (
+        <div className="px-3 py-2">
+          <div className="flex items-center gap-2 rounded-md bg-accent/50 px-3 py-2">
+            <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="truncate text-xs">{convTitle}</span>
             <Button
               variant="ghost"
               size="icon"
               className="ml-auto h-6 w-6 shrink-0"
               onClick={handleNewConv}
             >
-              <Trash2 className="h-3 w-3 text-muted-foreground" />
+              <Plus className="h-3 w-3 text-muted-foreground" />
             </Button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       <Separator />
 

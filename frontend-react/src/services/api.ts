@@ -182,7 +182,11 @@ export async function updateConversation(
 }
 
 export async function deleteConversation(id: string): Promise<void> {
-  await fetch(`${API_BASE}/conversations/${id}`, { method: 'DELETE', headers: authHeader() })
+  const res = await fetch(`${API_BASE}/conversations/${id}`, { method: 'DELETE', headers: authHeader() })
+  if (!res.ok) {
+    const msg = await res.text().catch(() => '')
+    throw new Error(`删除失败: ${res.status} ${msg}`)
+  }
 }
 
 // ==========================================
@@ -223,4 +227,19 @@ export async function listFiles(): Promise<FileInfo[]> {
 /** 返回 PDF 原文查看的完整 URL（可直接作为 <iframe> src 或链接） */
 export function getFileViewUrl(fileHash: string): string {
   return `${API_BASE}/files/${fileHash}/view`
+}
+
+/** 自动生成对话标题（qwen-turbo 低成本模型） */
+export async function autoTitle(convId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_BASE}/conversations/${convId}/auto-title`, {
+      method: 'POST',
+      headers: authHeader(),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.title || null
+  } catch {
+    return null
+  }
 }
