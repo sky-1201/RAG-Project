@@ -28,9 +28,17 @@ interface ChatState {
   setUploadStatus: (status: UploadStatus, filename?: string) => void
 }
 
+/** 生成 UUID v4（兼容非 HTTPS 环境，crypto.randomUUID 仅 secure context 可用） */
+function uuidv4(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
+}
+
 function createMessage(role: 'user' | 'assistant', content = ''): Message {
   return {
-    id: crypto.randomUUID(),
+    id: uuidv4(),
     role,
     content,
     timestamp: Date.now(),
