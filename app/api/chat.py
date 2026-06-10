@@ -24,6 +24,7 @@ def _parse_sources(output_text: str) -> list[dict]:
     blocks = re.split(r'--- 证据 \d+ \[(.*?)\] ---', output_text)
     # blocks[0] = 前言（无效），之后交替: metadata, content, metadata, content...
     sources = []
+    _dedup_keys: list[str] = []
     for i in range(1, len(blocks), 2):
         meta_str = blocks[i]
         content = blocks[i + 1].strip() if i + 1 < len(blocks) else ""
@@ -34,11 +35,16 @@ def _parse_sources(output_text: str) -> list[dict]:
         hash_match = re.search(r'hash:\s*(\w+)', meta_str)
 
         file_name = file_match.group(1).strip() if file_match else "未知文件"
-        # 不按文件名去重 — 所有证据块逐一展示，每条可独立预览和跳转页码
+        page_num = int(page_match.group(1)) if page_match else 1
+        # 按 (文件名 + 页码) 去重：同文件同页只保留第一条，不同页码各自展示
+        dedup_key = f"{file_name}|{page_num}"
+        if any(k == dedup_key for k in _dedup_keys):
+            continue
+        _dedup_keys.append(dedup_key)
         sources.append({
             "file": file_name,
             "score": score_match.group(1) if score_match else "N/A",
-            "page_number": int(page_match.group(1)) if page_match else 1,
+            "page_number": page_num,
             "file_hash": hash_match.group(1) if hash_match else "",
             "snippet": content[:200] if content else "",
         })

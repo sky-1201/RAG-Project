@@ -14,8 +14,8 @@ interface ChatState {
   lastUploadFilename: string | null
 
   // PDF viewer state
-  pdfViewer: { isOpen: boolean; fileHash: string; fileName: string; pageNumber: number }
-  openPdfViewer: (fileHash: string, fileName: string, pageNumber: number) => void
+  pdfViewer: { isOpen: boolean; fileHash: string; fileName: string; pageNumber: number; snippet: string }
+  openPdfViewer: (fileHash: string, fileName: string, pageNumber: number, snippet?: string) => void
   closePdfViewer: () => void
 
   // Actions
@@ -51,13 +51,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentConversationId: null,
   uploadStatus: 'idle',
   lastUploadFilename: null,
-  pdfViewer: { isOpen: false, fileHash: '', fileName: '', pageNumber: 1 },
+  pdfViewer: { isOpen: false, fileHash: '', fileName: '', pageNumber: 1, snippet: '' },
 
-  openPdfViewer: (fileHash, fileName, pageNumber) =>
-    set({ pdfViewer: { isOpen: true, fileHash, fileName, pageNumber } }),
+  openPdfViewer: (fileHash, fileName, pageNumber, snippet = '') =>
+    set({ pdfViewer: { isOpen: true, fileHash, fileName, pageNumber, snippet } }),
 
   closePdfViewer: () =>
-    set({ pdfViewer: { isOpen: false, fileHash: '', fileName: '', pageNumber: 1 } }),
+    set({ pdfViewer: { isOpen: false, fileHash: '', fileName: '', pageNumber: 1, snippet: '' } }),
 
   sendMessage: async (query: string) => {
     const { messages, abortController: oldAbort } = get()

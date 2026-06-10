@@ -23,13 +23,23 @@ import {
   ChevronRight,
   Loader2,
   FileText,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export function Sidebar() {
+export function Sidebar({
+  mobileOpen = false,
+  onMobileClose,
+  collapsed = false,
+  onCollapse,
+}: {
+  mobileOpen?: boolean
+  onMobileClose?: () => void
+  collapsed?: boolean
+  onCollapse?: () => void
+}) {
   const { messages, clearMessages, setMessages, setConversationId, currentConversationId, openPdfViewer } =
     useChatStore()
-  const [isCollapsed, setIsCollapsed] = useState(false)
   const [isOnline, setIsOnline] = useState(false)
   const [convs, setConvs] = useState<ConversationSummary[]>([])
   const [loadingConvId, setLoadingConvId] = useState<string | null>(null)
@@ -175,7 +185,12 @@ export function Sidebar() {
     <aside
       className={cn(
         'flex h-full flex-col border-r bg-card transition-all duration-300',
-        isCollapsed ? 'w-0 overflow-hidden border-r-0' : 'w-80'
+        // 桌面端：常驻侧边栏，可折叠
+        'hidden lg:flex',
+        collapsed ? 'lg:w-0 lg:overflow-hidden lg:border-r-0' : 'lg:w-80',
+        // 移动端：fixed 浮层，从左滑入
+        'lg:relative',
+        mobileOpen ? 'fixed inset-y-0 left-0 z-40 flex w-80 shadow-2xl' : ''
       )}
     >
       {/* Logo */}
@@ -184,9 +199,16 @@ export function Sidebar() {
           <Sparkles className="h-5 w-5 text-primary" />
           <span className="font-semibold text-sm">Finance-RAG</span>
         </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setIsCollapsed(true)}>
+        {/* 桌面端：折叠按钮 */}
+        <Button variant="ghost" size="icon" className="hidden lg:flex h-7 w-7" onClick={onCollapse}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
+        {/* 移动端：关闭按钮 */}
+        {onMobileClose && (
+          <Button variant="ghost" size="icon" className="lg:hidden h-7 w-7" onClick={onMobileClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       <Separator />
@@ -409,20 +431,15 @@ function DeleteFileDialog({
   )
 }
 
-/** 侧边栏展开按钮 */
-export function SidebarToggle() {
+/** 侧边栏展开按钮（桌面端，折叠后显示） */
+export function SidebarToggle({ visible, onExpand }: { visible: boolean; onExpand: () => void }) {
+  if (!visible) return null
   return (
     <Button
       variant="ghost"
       size="icon"
-      className="absolute left-3 top-3 z-10 h-8 w-8"
-      onClick={() => {
-        const sidebar = document.querySelector('aside')
-        const toggle = document.querySelector('#sidebar-toggle')
-        if (sidebar) sidebar.classList.replace('w-0', 'w-80')
-        if (toggle) toggle.classList.add('hidden')
-      }}
-      id="sidebar-toggle"
+      className="fixed left-3 top-3 z-50 h-8 w-8 hidden lg:flex"
+      onClick={onExpand}
     >
       <ChevronRight className="h-4 w-4" />
     </Button>
