@@ -22,15 +22,22 @@ class RetrievalService:
             dashscope_api_key=settings.DASHSCOPE_API_KEY
         )
 
-        try:
-            connections.connect(
-                alias="default",
-                host=settings.MILVUS_HOST,
-                port=settings.MILVUS_PORT
-            )
-            logger.info("🔌 底层原生 PyMilvus 连接激活成功！")
-        except Exception as e:
-            logger.warning(f"⚠️ PyMilvus 连接复用提示: {e}")
+        # Milvus 连接重试（容器启动顺序可能导致首次失败）
+        for attempt in range(1, 4):
+            try:
+                connections.connect(
+                    alias="default",
+                    host=settings.MILVUS_HOST,
+                    port=settings.MILVUS_PORT
+                )
+                logger.info("🔌 底层原生 PyMilvus 连接激活成功！")
+                break
+            except Exception as e:
+                if attempt < 3:
+                    logger.info(f"⏳ Milvus 连接重试 {attempt}/3 ...")
+                    import time as _t; _t.sleep(1.5)
+                else:
+                    logger.warning(f"⚠️ PyMilvus 连接复用提示: {e}")
 
         self.collection = Collection(settings.COLLECTION_NAME)
         self.collection.load()

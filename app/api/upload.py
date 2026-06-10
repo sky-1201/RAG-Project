@@ -123,6 +123,7 @@ def list_files():
                 "file_hash": r.file_hash,
                 "file_name": r.file_name,
                 "upload_time": r.upload_time.isoformat() if r.upload_time else None,
+                "file_size": os.path.getsize(r.file_path) if r.file_path and os.path.exists(r.file_path) else 0,
             }
             for r in records
         ]

@@ -333,14 +333,20 @@ class DocumentIngestionService:
             # ----------------------------------------------------
             logger.info(f"🧠 开始处理子块及其向量...")
 
-            try:
-                connections.connect(
-                    alias="default",
-                    host=settings.MILVUS_HOST,
-                    port=settings.MILVUS_PORT
-                )
-            except Exception as e:
-                logger.warning(f"⚠️ PyMilvus 连接复用提示: {e}")
+            for attempt in range(1, 4):
+                try:
+                    connections.connect(
+                        alias="default",
+                        host=settings.MILVUS_HOST,
+                        port=settings.MILVUS_PORT
+                    )
+                    break
+                except Exception as e:
+                    if attempt < 3:
+                        logger.info(f"⏳ Milvus 连接重试 {attempt}/3 ...")
+                        import time as _t; _t.sleep(1.5)
+                    else:
+                        logger.warning(f"⚠️ PyMilvus 连接复用提示: {e}")
 
             collection_name = settings.COLLECTION_NAME
 

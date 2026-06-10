@@ -216,6 +216,7 @@ export interface FileInfo {
   file_hash: string
   file_name: string
   upload_time: string
+  file_size: number
 }
 
 export async function listFiles(): Promise<FileInfo[]> {

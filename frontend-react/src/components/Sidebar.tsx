@@ -8,6 +8,7 @@ import {
   listConversations,
   getConversation,
   deleteConversation,
+  updateConversation,
   deleteFile,
   listFiles,
   type ConversationSummary,
@@ -33,6 +34,8 @@ export function Sidebar() {
   const [convs, setConvs] = useState<ConversationSummary[]>([])
   const [loadingConvId, setLoadingConvId] = useState<string | null>(null)
   const [files, setFiles] = useState<FileInfo[]>([])
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState("")
   const [deleteTarget, setDeleteTarget] = useState<{ hash: string; name: string } | null>(null)
 
   // 检测后端 — 轻量 HEAD 请求，不触发 Agent
@@ -132,6 +135,24 @@ export function Sidebar() {
   }
 
   // 确认删除文件
+  // 对话重命名
+  const startRename = (id: string, title: string) => {
+    setEditingId(id)
+    setEditTitle(title)
+  }
+  const saveRename = async () => {
+    if (!editingId) return
+    const title = editTitle.trim()
+    if (title) {
+      try {
+        await updateConversation(editingId, { title })
+        refreshConvList()
+      } catch { /* ignore */ }
+    }
+    setEditingId(null)
+    setEditTitle("")
+  }
+
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return
     const { hash } = deleteTarget
@@ -206,7 +227,31 @@ export function Sidebar() {
                   ) : (
                     <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
                   )}
-                  <span className="truncate text-xs flex-1">{c.title}</span>
+                  {editingId === c.id ? (
+                    <input
+                      className="flex-1 min-w-0 rounded border border-primary bg-background px-1 py-0.5 text-xs outline-none"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') saveRename()
+                        if (e.key === 'Escape') setEditingId(null)
+                      }}
+                      onBlur={saveRename}
+                      autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <span
+                      className="truncate text-xs flex-1 select-none"
+                      title="双击重命名"
+                      onDoubleClick={(e) => {
+                        e.stopPropagation()
+                        startRename(c.id, c.title)
+                      }}
+                    >
+                      {c.title}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
@@ -279,7 +324,14 @@ export function Sidebar() {
                 onClick={() => openPdfViewer(f.file_hash, f.file_name, 1)}
               >
                 <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span className="truncate flex-1">{f.file_name}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="truncate">{f.file_name}</div>
+                  <div className="text-[10px] text-muted-foreground/70 mt-0.5">
+                    {f.file_size > 0 ? `${(f.file_size / 1024 / 1024).toFixed(1)} MB` : ''}
+                    {f.file_size > 0 && f.upload_time ? ' · ' : ''}
+                    {f.upload_time ? new Date(f.upload_time).toLocaleDateString('zh-CN') : ''}
+                  </div>
+                </div>
                 <span
                   className="h-4 w-4 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center text-muted-foreground hover:text-destructive"
                   title="删除此文件"

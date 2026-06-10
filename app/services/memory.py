@@ -44,15 +44,20 @@ class MemoryService:
             dashscope_api_key=settings.DASHSCOPE_API_KEY,
         )
 
-        # 连接 Milvus（已连接则复用，和项目中 ingestion/retrieval 行为一致）
-        try:
-            connections.connect(
-                alias="default",
-                host=settings.MILVUS_HOST,
-                port=settings.MILVUS_PORT,
-            )
-        except Exception:
-            logger.debug("PyMilvus 连接已存在，复用现有连接")
+        # 连接 Milvus（带重试，和项目中 ingestion/retrieval 行为一致）
+        for attempt in range(1, 4):
+            try:
+                connections.connect(
+                    alias="default",
+                    host=settings.MILVUS_HOST,
+                    port=settings.MILVUS_PORT,
+                )
+                break
+            except Exception:
+                if attempt < 3:
+                    import time as _t; _t.sleep(1.5)
+                else:
+                    logger.debug("PyMilvus 连接已存在，复用现有连接")
 
     # ==========================================
     # 内部：Milvus Collection 惰性初始化

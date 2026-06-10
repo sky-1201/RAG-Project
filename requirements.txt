@@ -40,3 +40,10 @@ psycopg2-binary==2.9.9         # 专为容器环境准备的二进制驱动，�
 # 8. Agent 编排框架与文本处理
 langgraph>=0.0.30
 langchain-text-splitters>=0.0.1
+
+# 9. Prompt 模板加载
+pyyaml>=6.0
+
+# 10. 测试框架
+pytest>=8.0
+pytest-mock>=3.12
