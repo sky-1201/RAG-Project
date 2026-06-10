@@ -1,0 +1,23 @@
+# ==========================================
+# 生产环境部署配置
+# 本地使用: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ==========================================
+
+services:
+  backend-v2:
+    # 不挂载源码热重载，使用 Dockerfile 内置代码
+    volumes: []
+    environment:
+      - DEBUG=false
+
+  frontend-react:
+    # 使用 Dockerfile 完整构建（nginx 静态文件），不走 Vite dev server
+    build:
+      target: ""   # 覆盖 dev 模式的 target: builder
+      args:
+        VITE_API_KEY: ${API_SECRET_KEY:-finance-rag-dev-key}
+    command: []    # 使用 Dockerfile 默认的 nginx 启动命令
+    ports:
+      - "80:80"
+    environment: {}
+    volumes: []

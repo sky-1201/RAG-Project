@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     API_HOST: str = "127.0.0.1"
     API_PORT: int = 8000
 
+    # --- CORS 跨域配置（部署时改为服务器域名）---
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:8502"
+
     # --- 路径配置 ---
     RAW_DATA_PATH: str = "data/raw"
     PROCESSED_DATA_PATH: str = "data/processed"

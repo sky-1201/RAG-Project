@@ -15,10 +15,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS 中间件
+# CORS 中间件（开发/生产通过 .env 中的 CORS_ORIGINS 控制）
+cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:8502"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
