@@ -8,6 +8,7 @@ import {
   listConversations,
   getConversation,
   deleteConversation,
+  deleteFile,
   listFiles,
   type ConversationSummary,
   type FileInfo,
@@ -32,6 +33,7 @@ export function Sidebar() {
   const [convs, setConvs] = useState<ConversationSummary[]>([])
   const [loadingConvId, setLoadingConvId] = useState<string | null>(null)
   const [files, setFiles] = useState<FileInfo[]>([])
+  const [deleteTarget, setDeleteTarget] = useState<{ hash: string; name: string } | null>(null)
 
   // 检测后端 — 轻量 HEAD 请求，不触发 Agent
   useEffect(() => {
@@ -129,12 +131,26 @@ export function Sidebar() {
     }
   }
 
+  // 确认删除文件
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return
+    const { hash } = deleteTarget
+    setDeleteTarget(null)
+    try {
+      await deleteFile(hash)
+      refreshFileList()
+    } catch {
+      // ignore
+    }
+  }
+
   const convTitle =
     messages.length > 0
       ? messages.find((m) => m.role === 'user')?.content.slice(0, 30) || '新对话'
       : '新对话'
 
   return (
+    <>
     <aside
       className={cn(
         'flex h-full flex-col border-r bg-card transition-all duration-300',
@@ -257,14 +273,21 @@ export function Sidebar() {
         {files.length > 0 && (
           <div className="mt-3 space-y-1">
             {files.map((f) => (
-              <button
+              <div
                 key={f.file_hash}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent"
+                className="group flex items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent cursor-pointer"
                 onClick={() => openPdfViewer(f.file_hash, f.file_name, 1)}
               >
                 <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <span className="truncate flex-1">{f.file_name}</span>
-              </button>
+                <span
+                  className="h-4 w-4 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center text-muted-foreground hover:text-destructive"
+                  title="删除此文件"
+                  onClick={(e) => { e.stopPropagation(); setDeleteTarget({ hash: f.file_hash, name: f.file_name }) }}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </span>
+              </div>
             ))}
           </div>
         )}
@@ -285,6 +308,52 @@ export function Sidebar() {
         <p className="mt-1 text-xs text-muted-foreground">Model: qwen-max · Milvus 2.4</p>
       </div>
     </aside>
+
+      {/* 删除文件确认弹窗 */}
+      {deleteTarget != null && (
+        <DeleteFileDialog
+          fileName={deleteTarget!.name}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+    </>
+  )
+}
+
+/** 删除文件确认弹窗 */
+function DeleteFileDialog({
+  fileName,
+  onConfirm,
+  onCancel,
+}: {
+  fileName: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
+      <div
+        className="w-80 rounded-xl bg-background p-6 shadow-xl border mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="font-semibold mb-2">⚠️ 确认删除</h3>
+        <p className="text-sm text-muted-foreground mb-2">
+          确定要删除「{fileName}」吗？
+        </p>
+        <p className="text-xs text-muted-foreground mb-4">
+          此操作将清除该文件的所有向量数据和原文，不可恢复。
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={onCancel}>
+            取消
+          </Button>
+          <Button variant="destructive" size="sm" onClick={onConfirm}>
+            确认删除
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
 

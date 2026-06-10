@@ -11,7 +11,7 @@ from app.services.ingestion import DocumentIngestionService
 from app.core.config import settings
 from app.core.exceptions import IngestionError, PDFParseError, DuplicateFileError
 from app.services.progress import create_task, update_progress, mark_success, mark_error, get_progress
-from app.database import get_db_session, UploadedFile
+from app.database import get_db_session, UploadedFile, ParentDocument
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -138,3 +138,73 @@ def view_pdf(file_hash: str):
         if not record.file_path or not os.path.exists(record.file_path):
             raise HTTPException(status_code=404, detail="文件已被删除或路径无效")
         return FileResponse(record.file_path, media_type="application/pdf")
+
+
+@router.delete("/files/{file_hash}", summary="删除已入库的 PDF 及全部关联数据")
+def delete_file(file_hash: str):
+    """级联删除 PostgreSQL 父块、Milvus 向量、磁盘文件、元数据记录"""
+    logger.info(f"🗑️ 收到删除请求: file_hash={file_hash}")
+
+    with get_db_session() as db:
+        record = db.query(UploadedFile).filter(UploadedFile.file_hash == file_hash).first()
+        if not record:
+            raise HTTPException(status_code=404, detail="文件不存在")
+        file_name = record.file_name
+        file_path = record.file_path
+
+        # 1. 删除 PostgreSQL 父块
+        deleted_pg = 0
+        try:
+            deleted_pg = (
+                db.query(ParentDocument)
+                .filter(ParentDocument.meta_data["file_hash"].astext == file_hash)
+                .delete(synchronize_session=False)
+            )
+            db.commit()
+            logger.info(f"📦 已删除 {deleted_pg} 条父块记录")
+        except Exception as e:
+            db.rollback()
+            logger.warning(f"⚠️ PostgreSQL 清理失败: {e}")
+
+        # 2. 删除 Milvus 向量
+        deleted_mv = 0
+        try:
+            from pymilvus import connections, Collection
+            from app.core.config import settings as s
+            connections.connect(alias="default", host=s.MILVUS_HOST, port=s.MILVUS_PORT)
+            col = Collection(s.COLLECTION_NAME)
+            col.load()
+            expr = f'metadata["file_hash"] == "{file_hash}"'
+            result = col.query(expr=expr, output_fields=["chunk_id"])
+            chunk_ids = [r["chunk_id"] for r in result]
+            if chunk_ids:
+                deleted_mv = len(chunk_ids)
+                col.delete(expr=f'chunk_id in {chunk_ids}')
+                col.flush()
+            logger.info(f"🧠 已删除 {deleted_mv} 条 Milvus 向量")
+        except Exception as e:
+            logger.warning(f"⚠️ Milvus 清理失败: {e}")
+
+        # 3. 删除磁盘文件
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                logger.info(f"💾 已删除磁盘文件: {file_path}")
+            except Exception as e:
+                logger.warning(f"⚠️ 磁盘文件删除失败: {e}")
+
+        # 4. 删除元数据记录
+        try:
+            db.delete(record)
+            db.commit()
+            logger.info(f"✅ 文件 [{file_name}] 删除完成")
+        except Exception as e:
+            db.rollback()
+            logger.warning(f"⚠️ 元数据记录删除失败: {e}")
+
+    return {
+        "status": "deleted",
+        "file_name": file_name,
+        "deleted_pg_chunks": deleted_pg,
+        "deleted_mv_chunks": deleted_mv,
+    }

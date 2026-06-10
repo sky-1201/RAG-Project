@@ -91,3 +91,47 @@ class TestCalculateMD5:
 
         result = self.service._calculate_md5(str(f))
         assert len(result) == 32  # MD5 总是 32 个十六进制字符
+
+
+class TestFindPageNumber:
+    """文本 → 页码匹配 — _find_page_number()"""
+
+    def setup_method(self):
+        self.service = DocumentIngestionService()
+        # 模拟 pypdf 提取的逐页文本
+        self.page_texts = {
+            1: "深信服科技股份有限公司 2025年年度报告 目录",
+            2: "第一章 公司简介 深信服成立于...",
+            3: "第二章 财务数据 营业收入30.09亿元",
+            4: "第三章 研发投入 研发费用9.82亿元同比增长",
+            5: "第四章 风险提示 市场风险政策风险",
+        }
+
+    def test_exact_match(self):
+        """chunk 文本在某一页精确出现 → 返回该页码"""
+        chunk = "研发费用9.82亿元同比增长"
+        page = self.service._find_page_number(chunk, self.page_texts)
+        assert page == 4
+
+    def test_partial_match(self):
+        """chunk 前半段精确匹配，函数截取前 300 字搜索"""
+        chunk = "营业收入30.09亿元，较上年同期增长..."
+        page = self.service._find_page_number(chunk, self.page_texts)
+        assert page == 3
+
+    def test_fuzzy_fallback(self):
+        """精确匹配失败时用字符重叠度打分"""
+        chunk = "深信服营业收入达到30多个亿"
+        # 精确不匹配，但第3页字符重叠度最高
+        page = self.service._find_page_number(chunk, self.page_texts)
+        assert page == 3
+
+    def test_empty_chunk_returns_page_1(self):
+        """空文本 → 默认返回第 1 页"""
+        page = self.service._find_page_number("", self.page_texts)
+        assert page == 1
+
+    def test_empty_page_texts(self):
+        """所有页文本为空 → 返回第 1 页（不崩溃）"""
+        page = self.service._find_page_number("some chunk", {1: "", 2: ""})
+        assert page == 1

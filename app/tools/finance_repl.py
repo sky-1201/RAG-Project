@@ -1,7 +1,7 @@
 import sys
 import io
 import logging
-import concurrent.futures
+import multiprocessing
 from langchain_core.tools import tool
 
 logger = logging.getLogger(__name__)
@@ -9,7 +9,22 @@ logger = logging.getLogger(__name__)
 # 执行超时（秒）
 _MAX_EXEC_SECONDS = 10
 
-# 受限的 __builtins__：只允许安全的数值计算和基础操作
+
+# ==========================================
+# 安全模块导入函数（顶层函数，Process 可 Pickle）
+# ==========================================
+
+def _safe_import(name, *args, **kwargs):
+    """受限的 __import__ 替代：仅允许白名单模块"""
+    if name in {"math", "json", "datetime", "collections", "itertools", "decimal"}:
+        return __import__(name)
+    raise ImportError(f"禁止导入模块: {name}")
+
+
+# ==========================================
+# 受限的内置函数集
+# ==========================================
+
 _SAFE_BUILTINS = {
     "abs": abs,
     "all": all,
@@ -35,24 +50,40 @@ _SAFE_BUILTINS = {
     "True": True,
     "False": False,
     "None": None,
-    # 安全导入仅允许的模块
-    "__import__": lambda name, *args, **kwargs: (
-        __import__(name) if name in {"math", "json", "datetime", "collections", "itertools", "decimal"}
-        else (_ for _ in ()).throw(ImportError(f"禁止导入模块: {name}"))
-    ),
+    "__import__": _safe_import,
 }
 
 
-def _run_code(code: str, output_buffer: io.StringIO) -> str | None:
-    """在受限沙盒中执行代码，捕获 stdout。"""
+# ==========================================
+# 沙盒执行函数（顶层函数，multiprocessing 可 Pickle）
+# ==========================================
+
+def _execute_sandbox(code: str, result_queue: multiprocessing.Queue) -> None:
+    """
+    在子进程中执行受限代码，通过 Queue 返回结果。
+    返回值: {"output": str, "error": str | None}
+    """
+    output_buffer = io.StringIO()
     old_stdout = sys.stdout
     sys.stdout = output_buffer
     try:
         exec(code, {"__builtins__": _SAFE_BUILTINS}, {})
-        return None  # success
+        result_queue.put({
+            "output": output_buffer.getvalue().strip(),
+            "error": None,
+        })
+    except Exception as e:
+        result_queue.put({
+            "output": output_buffer.getvalue().strip(),
+            "error": f"{type(e).__name__}: {str(e)}",
+        })
     finally:
         sys.stdout = old_stdout
 
+
+# ==========================================
+# Agent 工具：Python 代码沙盒
+# ==========================================
 
 @tool
 def python_repl_tool(code: str) -> str:
@@ -65,23 +96,33 @@ def python_repl_tool(code: str) -> str:
     logger.info(f"🤖 触发 Agent 工具: 正在执行大模型生成的 Python 代码 👇\n{code}")
     logger.info("=" * 40)
 
-    output_buffer = io.StringIO()
+    result_queue: multiprocessing.Queue = multiprocessing.Queue()
+    proc = multiprocessing.Process(target=_execute_sandbox, args=(code, result_queue))
+    proc.start()
+    proc.join(timeout=_MAX_EXEC_SECONDS)
+
+    if proc.is_alive():
+        # 子进程还在跑 → 超时，强制杀死
+        proc.terminate()
+        proc.join()
+        logger.error(f"⏱️ 代码执行超时（>{_MAX_EXEC_SECONDS}s），子进程已被强制终止。")
+        return f"❌ 代码执行超时（>{_MAX_EXEC_SECONDS} 秒）。请检查是否存在死循环或过于复杂的计算，简化后重试。"
+
+    # exitcode == 0 表示正常结束，!= 0 表示异常退出
+    if proc.exitcode != 0:
+        logger.error(f"❌ 子进程异常退出，exitcode={proc.exitcode}")
+        return f"❌ 代码执行出错: 进程异常退出 (exitcode={proc.exitcode})"
 
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_run_code, code, output_buffer)
-            error = future.result(timeout=_MAX_EXEC_SECONDS)
-    except concurrent.futures.TimeoutError:
-        logger.error(f"⏱️ 代码执行超时（>{_MAX_EXEC_SECONDS}s），已强制终止。")
-        return f"❌ 代码执行超时（>{_MAX_EXEC_SECONDS} 秒）。请检查是否存在死循环或过于复杂的计算，简化后重试。"
-    except Exception as e:
-        error_msg = f"❌ 代码执行出错: {type(e).__name__}: {str(e)}"
-        logger.error(error_msg)
-        return error_msg
+        result = result_queue.get_nowait()
+    except Exception:
+        logger.error("❌ 无法从子进程获取执行结果")
+        return "❌ 代码执行出错: 无法获取执行结果"
 
-    if error is not None:
-        return str(error)
+    if result["error"] is not None:
+        logger.error(f"❌ 沙盒内执行出错: {result['error']}")
+        return f"❌ 代码执行出错: {result['error']}"
 
-    output = output_buffer.getvalue().strip()
+    output = result["output"]
     logger.info(f"✅ 工具执行成功，返回结果: {output}")
     return output if output else "代码执行成功，但没有使用 print() 输出结果。请修改代码并重试。"

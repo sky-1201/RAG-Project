@@ -224,6 +224,13 @@ export async function listFiles(): Promise<FileInfo[]> {
   return res.json()
 }
 
+/** 删除已入库的 PDF 文件及其全部关联数据 */
+export async function deleteFile(fileHash: string): Promise<{ status: string }> {
+  const res = await fetch(`${API_BASE}/files/${fileHash}`, { method: 'DELETE', headers: authHeader() })
+  if (!res.ok) throw new Error('删除失败')
+  return res.json()
+}
+
 /** 返回 PDF 原文查看的完整 URL（可直接作为 <iframe> src 或链接） */
 export function getFileViewUrl(fileHash: string): string {
   return `${API_BASE}/files/${fileHash}/view`
