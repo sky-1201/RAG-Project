@@ -20,7 +20,6 @@ export function PDFViewer() {
   const [currentPage, setCurrentPage] = useState(pdfViewer.pageNumber || 1)
   const [pdfData, setPdfData] = useState<Uint8Array | null>(null)
   const [loading, setLoading] = useState(false)
-  const [visiblePages, setVisiblePages] = useState(10) // 分批渲染
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map())
@@ -32,7 +31,6 @@ export function PDFViewer() {
     setLoading(true)
     setPdfData(null)
     setNumPages(0)
-    setVisiblePages(10)
     lastScrolledPage.current = 0
     pageRefs.current.clear()
     fetch(getFileViewUrl(pdfViewer.fileHash), { headers: authHeader() })
@@ -52,26 +50,10 @@ export function PDFViewer() {
     if (el) pageRefs.current.set(pageNum, el)
   }, [])
 
-  // 分批渲染：每 200ms 多渲染 10 页，避免 CPU 卡死
-  useEffect(() => {
-    if (numPages === 0 || visiblePages >= numPages) return
-    const timer = setInterval(() => {
-      setVisiblePages((v) => {
-        if (v >= numPages) { clearInterval(timer); return v }
-        return Math.min(v + 10, numPages)
-      })
-    }, 200)
-    return () => clearInterval(timer)
-  }, [numPages, visiblePages])
-
   // 滚动到目标页
   useEffect(() => {
     const targetPage = pdfViewer.pageNumber || 1
     if (numPages === 0 || lastScrolledPage.current === targetPage) return
-    // 确保目标页在可见范围内
-    if (targetPage > visiblePages) {
-      setVisiblePages(Math.min(targetPage + 5, numPages))
-    }
     const tryScroll = () => {
       const el = pageRefs.current.get(targetPage)
       if (el && el.getBoundingClientRect().height > 50) {
@@ -82,7 +64,7 @@ export function PDFViewer() {
       }
     }
     setTimeout(tryScroll, 300)
-  }, [numPages, pdfViewer.pageNumber, visiblePages])
+  }, [numPages, pdfViewer.pageNumber])
 
   // 滚动检测当前页码
   const handleScroll = useCallback(() => {
@@ -135,9 +117,11 @@ export function PDFViewer() {
               onLoadSuccess={({ numPages: n }) => setNumPages(n)}
               className="flex flex-col items-center py-4 gap-4"
             >
-              {Array.from({ length: Math.min(visiblePages, numPages) }, (_, i) => {
+              {Array.from({ length: numPages }, (_, i) => {
                 const pageNum = i + 1
                 const isHighlighted = pdfViewer.snippet && pageNum === pdfViewer.pageNumber
+                // 只对当前可见页 ±3 开启文字/注释层，大幅减少 DOM 节点避免卡死
+                const nearViewport = Math.abs(pageNum - currentPage) <= 3
                 return (
                   <div key={pageNum}>
                     {isHighlighted && (
@@ -152,7 +136,7 @@ export function PDFViewer() {
                       </div>
                     )}
                     <div ref={(el) => setPageRef(pageNum, el)} className="shadow-md bg-white">
-                      <Page pageNumber={pageNum} renderTextLayer={true} renderAnnotationLayer={true} width={pageWidth} />
+                      <Page pageNumber={pageNum} renderTextLayer={nearViewport} renderAnnotationLayer={nearViewport} width={pageWidth} />
                     </div>
                   </div>
                 )
