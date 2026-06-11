@@ -7,11 +7,67 @@ import { Button } from '@/components/ui/button'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 
-// 从本地 node_modules 加载 pdfjs worker，避免国内 CDN 不可达
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
   import.meta.url,
 ).toString()
+
+/** 单页组件：进入视口才真正渲染 Canvas，离开后保留高度占位 */
+function LazyPage({
+  pageNum,
+  width,
+  onRegister,
+  onVisible,
+}: {
+  pageNum: number
+  width: number
+  onRegister: (pageNum: number, el: HTMLDivElement | null) => void
+  onVisible: (pageNum: number) => void
+}) {
+  const [show, setShow] = useState(false)
+  const divRef = useRef<HTMLDivElement>(null)
+
+  // 同时注册到父组件 + 设置 IntersectionObserver
+  const setRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      divRef.current = el
+      onRegister(pageNum, el)
+    },
+    [pageNum, onRegister],
+  )
+
+  useEffect(() => {
+    const el = divRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShow(true)
+          onVisible(pageNum)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: '600px' }, // 提前 600px 开始渲染
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [pageNum, onVisible])
+
+  return (
+    <div ref={setRef} className="shadow-md bg-white" style={{ minHeight: 200 }}>
+      {show ? (
+        <Page
+          pageNumber={pageNum}
+          renderTextLayer={true}
+          renderAnnotationLayer={true}
+          width={width}
+        />
+      ) : (
+        <div style={{ width, height: width * 1.414 }} className="bg-muted/20" />
+      )}
+    </div>
+  )
+}
 
 export function PDFViewer() {
   const pdfViewer = useChatStore((s) => s.pdfViewer)
@@ -26,7 +82,6 @@ export function PDFViewer() {
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map())
   const lastScrolledPage = useRef(0)
 
-  // 每次打开切换文件时，带鉴权请求 PDF 数据
   useEffect(() => {
     if (!pdfViewer.isOpen || !pdfViewer.fileHash) return
     setLoading(true)
@@ -47,41 +102,34 @@ export function PDFViewer() {
       .finally(() => setLoading(false))
   }, [pdfViewer.isOpen, pdfViewer.fileHash])
 
-  // 记录每页 DOM 的 ref
   const setPageRef = useCallback((pageNum: number, el: HTMLDivElement | null) => {
     if (el) {
       pageRefs.current.set(pageNum, el)
     }
   }, [])
 
-  // 当目标页码或页面总数就绪后，滚动到目标页
+  // 滚动到目标页
   useEffect(() => {
     const targetPage = pdfViewer.pageNumber || 1
     if (numPages === 0 || lastScrolledPage.current === targetPage) return
-    // 等待所有页面的 ref 注册完毕
     const tryScroll = () => {
       const el = pageRefs.current.get(targetPage)
       if (el) {
         lastScrolledPage.current = targetPage
         el.scrollIntoView({ behavior: 'smooth', block: 'start' })
       } else if (pageRefs.current.size < numPages) {
-        // 页面还在渲染中，稍后重试
-        setTimeout(tryScroll, 150)
+        setTimeout(tryScroll, 200)
       }
     }
-    // 给 react-pdf 一点时间渲染首屏
-    const timer = setTimeout(tryScroll, 200)
+    const timer = setTimeout(tryScroll, 300)
     return () => clearTimeout(timer)
   }, [numPages, pdfViewer.pageNumber])
 
-  // 滚动时检测当前可见页码
+  // 滚动时检测当前页码
   const handleScroll = useCallback(() => {
     const container = scrollRef.current
     if (!container) return
-    const containerTop = container.scrollTop
-    const containerHeight = container.clientHeight
-    const containerCenter = containerTop + containerHeight / 3  // 上 1/3 处算"当前页"
-
+    const containerCenter = container.scrollTop + container.clientHeight / 3
     let closestPage = 1
     let closestDist = Infinity
     pageRefs.current.forEach((el, page) => {
@@ -94,10 +142,11 @@ export function PDFViewer() {
     setCurrentPage(closestPage)
   }, [])
 
-  // 缓存文件对象，避免每次渲染创建新引用
   const fileObj = useMemo(() => {
     return pdfData ? { data: pdfData } : null
   }, [pdfData])
+
+  const pageWidth = Math.min(window.innerWidth * (window.innerWidth < 1024 ? 0.95 : 0.65), 900)
 
   if (!pdfViewer.isOpen) return null
 
@@ -107,7 +156,6 @@ export function PDFViewer() {
         className="relative flex h-[90vh] w-[70vw] lg:w-[70vw] max-sm:h-screen max-sm:w-screen max-sm:rounded-none flex-col rounded-xl bg-background shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 标题栏 */}
         <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
           <h2 className="text-sm font-semibold truncate pr-4">
             {pdfViewer.fileName}
@@ -122,12 +170,7 @@ export function PDFViewer() {
           </Button>
         </div>
 
-        {/* PDF 全页滚动区域 */}
-        <div
-          ref={scrollRef}
-          className="flex-1 overflow-auto bg-muted/30"
-          onScroll={handleScroll}
-        >
+        <div ref={scrollRef} className="flex-1 overflow-auto bg-muted/30" onScroll={handleScroll}>
           {loading && (
             <div className="flex items-center justify-center py-24">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -144,32 +187,30 @@ export function PDFViewer() {
                 const pageNum = i + 1
                 const isHighlighted = pdfViewer.snippet && pageNum === pdfViewer.pageNumber
                 return (
-                <div
-                  key={pageNum}
-                  ref={(el) => setPageRef(pageNum, el)}
-                  className="shadow-md bg-white relative"
-                >
-                  {isHighlighted && (
-                    <div className="mx-auto mb-2 rounded-lg border-2 border-amber-400 bg-amber-50 px-4 py-3 shadow-sm"
-                         style={{ width: Math.min(window.innerWidth * (window.innerWidth < 1024 ? 0.95 : 0.65), 900) }}>
-                      <div className="flex items-start gap-2">
-                        <span className="text-amber-600 text-sm shrink-0 mt-0.5">🔍</span>
-                        <div>
-                          <div className="text-xs font-semibold text-amber-700 mb-1">命中内容</div>
-                          <div className="text-xs text-amber-800 leading-relaxed line-clamp-4">
-                            {pdfViewer.snippet}
+                  <div key={pageNum}>
+                    {isHighlighted && (
+                      <div
+                        className="mx-auto mb-2 rounded-lg border-2 border-amber-400 bg-amber-50 px-4 py-3 shadow-sm"
+                        style={{ width: pageWidth }}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="text-amber-600 text-sm shrink-0 mt-0.5">🔍</span>
+                          <div>
+                            <div className="text-xs font-semibold text-amber-700 mb-1">命中内容</div>
+                            <div className="text-xs text-amber-800 leading-relaxed line-clamp-4">
+                              {pdfViewer.snippet}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                  <Page
-                    pageNumber={pageNum}
-                    renderTextLayer={true}
-                    renderAnnotationLayer={true}
-                    width={Math.min(window.innerWidth * (window.innerWidth < 1024 ? 0.95 : 0.65), 900)}
-                  />
-                </div>
+                    )}
+                    <LazyPage
+                      pageNum={pageNum}
+                      width={pageWidth}
+                      onRegister={setPageRef}
+                      onVisible={() => {}}
+                    />
+                  </div>
                 )
               })}
             </Document>
