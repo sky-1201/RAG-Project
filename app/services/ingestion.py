@@ -333,7 +333,7 @@ class DocumentIngestionService:
             # ----------------------------------------------------
             logger.info(f"🧠 开始处理子块及其向量...")
 
-            for attempt in range(1, 4):
+            for attempt in range(1, 8):
                 try:
                     connections.connect(
                         alias="default",
@@ -342,9 +342,9 @@ class DocumentIngestionService:
                     )
                     break
                 except Exception as e:
-                    if attempt < 3:
-                        logger.info(f"⏳ Milvus 连接重试 {attempt}/3 ...")
-                        import time as _t; _t.sleep(1.5)
+                    if attempt < 7:
+                        logger.info(f"⏳ Milvus 连接重试 {attempt}/7 ...")
+                        import time as _t; _t.sleep(2)
                     else:
                         logger.warning(f"⚠️ PyMilvus 连接复用提示: {e}")
 

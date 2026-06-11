@@ -44,20 +44,21 @@ class MemoryService:
             dashscope_api_key=settings.DASHSCOPE_API_KEY,
         )
 
-        # 连接 Milvus（带重试，和项目中 ingestion/retrieval 行为一致）
-        for attempt in range(1, 4):
+        # 连接 Milvus（带重试，生产环境 Milvus 启动较慢需要更多次重试）
+        for attempt in range(1, 8):
             try:
                 connections.connect(
                     alias="default",
                     host=settings.MILVUS_HOST,
                     port=settings.MILVUS_PORT,
                 )
+                logger.info("🧠 MemoryService: Milvus 连接成功")
                 break
             except Exception:
-                if attempt < 3:
-                    import time as _t; _t.sleep(1.5)
+                if attempt < 7:
+                    import time as _t; _t.sleep(2)
                 else:
-                    logger.debug("PyMilvus 连接已存在，复用现有连接")
+                    logger.warning("⚠️ MemoryService: Milvus 连接失败，长期记忆功能不可用")
 
     # ==========================================
     # 内部：Milvus Collection 惰性初始化

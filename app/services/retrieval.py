@@ -22,8 +22,8 @@ class RetrievalService:
             dashscope_api_key=settings.DASHSCOPE_API_KEY
         )
 
-        # Milvus 连接重试（容器启动顺序可能导致首次失败）
-        for attempt in range(1, 4):
+        # Milvus 连接重试（生产环境 Milvus 启动慢，延长重试窗口）
+        for attempt in range(1, 8):
             try:
                 connections.connect(
                     alias="default",
@@ -33,9 +33,9 @@ class RetrievalService:
                 logger.info("🔌 底层原生 PyMilvus 连接激活成功！")
                 break
             except Exception as e:
-                if attempt < 3:
-                    logger.info(f"⏳ Milvus 连接重试 {attempt}/3 ...")
-                    import time as _t; _t.sleep(1.5)
+                if attempt < 7:
+                    logger.info(f"⏳ Milvus 连接重试 {attempt}/7 ...")
+                    import time as _t; _t.sleep(2)
                 else:
                     logger.warning(f"⚠️ PyMilvus 连接复用提示: {e}")
 
