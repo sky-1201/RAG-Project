@@ -12,63 +12,6 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString()
 
-/** 单页组件：进入视口才真正渲染 Canvas，离开后保留高度占位 */
-function LazyPage({
-  pageNum,
-  width,
-  onRegister,
-  onVisible,
-}: {
-  pageNum: number
-  width: number
-  onRegister: (pageNum: number, el: HTMLDivElement | null) => void
-  onVisible: (pageNum: number) => void
-}) {
-  const [show, setShow] = useState(false)
-  const divRef = useRef<HTMLDivElement>(null)
-
-  // 同时注册到父组件 + 设置 IntersectionObserver
-  const setRef = useCallback(
-    (el: HTMLDivElement | null) => {
-      divRef.current = el
-      onRegister(pageNum, el)
-    },
-    [pageNum, onRegister],
-  )
-
-  useEffect(() => {
-    const el = divRef.current
-    if (!el) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setShow(true)
-          onVisible(pageNum)
-          observer.disconnect()
-        }
-      },
-      { rootMargin: '600px' }, // 提前 600px 开始渲染
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [pageNum, onVisible])
-
-  return (
-    <div ref={setRef} className="shadow-md bg-white" style={{ minHeight: 200 }}>
-      {show ? (
-        <Page
-          pageNumber={pageNum}
-          renderTextLayer={true}
-          renderAnnotationLayer={true}
-          width={width}
-        />
-      ) : (
-        <div style={{ width, height: width * 1.414 }} className="bg-muted/20" />
-      )}
-    </div>
-  )
-}
-
 export function PDFViewer() {
   const pdfViewer = useChatStore((s) => s.pdfViewer)
   const closePdfViewer = useChatStore((s) => s.closePdfViewer)
@@ -77,16 +20,19 @@ export function PDFViewer() {
   const [currentPage, setCurrentPage] = useState(pdfViewer.pageNumber || 1)
   const [pdfData, setPdfData] = useState<Uint8Array | null>(null)
   const [loading, setLoading] = useState(false)
+  const [visiblePages, setVisiblePages] = useState(10) // 分批渲染
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map())
   const lastScrolledPage = useRef(0)
 
+  // 加载 PDF 文件
   useEffect(() => {
     if (!pdfViewer.isOpen || !pdfViewer.fileHash) return
     setLoading(true)
     setPdfData(null)
     setNumPages(0)
+    setVisiblePages(10)
     lastScrolledPage.current = 0
     pageRefs.current.clear()
     fetch(getFileViewUrl(pdfViewer.fileHash), { headers: authHeader() })
@@ -103,62 +49,63 @@ export function PDFViewer() {
   }, [pdfViewer.isOpen, pdfViewer.fileHash])
 
   const setPageRef = useCallback((pageNum: number, el: HTMLDivElement | null) => {
-    if (el) {
-      pageRefs.current.set(pageNum, el)
-    }
+    if (el) pageRefs.current.set(pageNum, el)
   }, [])
 
-  const pageWidth = Math.min(window.innerWidth * (window.innerWidth < 1024 ? 0.95 : 0.65), 900)
+  // 分批渲染：每 200ms 多渲染 10 页，避免 CPU 卡死
+  useEffect(() => {
+    if (numPages === 0 || visiblePages >= numPages) return
+    const timer = setInterval(() => {
+      setVisiblePages((v) => {
+        if (v >= numPages) { clearInterval(timer); return v }
+        return Math.min(v + 10, numPages)
+      })
+    }, 200)
+    return () => clearInterval(timer)
+  }, [numPages, visiblePages])
 
-  // 滚动到目标页（先估算位置触发懒加载渲染，再精确定位）
+  // 滚动到目标页
   useEffect(() => {
     const targetPage = pdfViewer.pageNumber || 1
     if (numPages === 0 || lastScrolledPage.current === targetPage) return
-    const container = scrollRef.current
-    if (!container) return
-    // 第 1 步：先滚到估算位置，让 IntersectionObserver 触发目标页渲染
-    const estHeight = pageWidth * 1.414 + 32
-    container.scrollTo({ top: (targetPage - 1) * estHeight, behavior: 'instant' as ScrollBehavior })
-    lastScrolledPage.current = targetPage
-    // 第 2 步：等渲染完成后精确对齐
-    const tryAlign = () => {
+    // 确保目标页在可见范围内
+    if (targetPage > visiblePages) {
+      setVisiblePages(Math.min(targetPage + 5, numPages))
+    }
+    const tryScroll = () => {
       const el = pageRefs.current.get(targetPage)
-      if (el && el.getBoundingClientRect().height > 150) {
+      if (el && el.getBoundingClientRect().height > 50) {
+        lastScrolledPage.current = targetPage
         el.scrollIntoView({ behavior: 'smooth', block: 'start' })
       } else {
-        setTimeout(tryAlign, 200)
+        setTimeout(tryScroll, 100)
       }
     }
-    setTimeout(tryAlign, 300)
-  }, [numPages, pdfViewer.pageNumber, pageWidth])
+    setTimeout(tryScroll, 300)
+  }, [numPages, pdfViewer.pageNumber, visiblePages])
 
-  // 滚动时检测当前页码
+  // 滚动检测当前页码
   const handleScroll = useCallback(() => {
     const container = scrollRef.current
     if (!container) return
     const containerCenter = container.scrollTop + container.clientHeight / 3
-    let closestPage = 1
-    let closestDist = Infinity
+    let closestPage = 1, closestDist = Infinity
     pageRefs.current.forEach((el, page) => {
       const dist = Math.abs(el.offsetTop - containerCenter)
-      if (dist < closestDist) {
-        closestDist = dist
-        closestPage = page
-      }
+      if (dist < closestDist) { closestDist = dist; closestPage = page }
     })
     setCurrentPage(closestPage)
   }, [])
 
-  const fileObj = useMemo(() => {
-    return pdfData ? { data: pdfData } : null
-  }, [pdfData])
+  const fileObj = useMemo(() => pdfData ? { data: pdfData } : null, [pdfData])
+  const pageWidth = Math.min(window.innerWidth * (window.innerWidth < 1024 ? 0.95 : 0.65), 900)
 
   if (!pdfViewer.isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={closePdfViewer}>
       <div
-        className="relative flex h-[90vh] w-[70vw] lg:w-[70vw] max-sm:h-screen max-sm:w-screen max-sm:rounded-none flex-col rounded-xl bg-background shadow-2xl"
+        className="relative flex h-[90vh] w-[70vw] max-sm:h-screen max-sm:w-screen max-sm:rounded-none flex-col rounded-xl bg-background shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
@@ -188,42 +135,32 @@ export function PDFViewer() {
               onLoadSuccess={({ numPages: n }) => setNumPages(n)}
               className="flex flex-col items-center py-4 gap-4"
             >
-              {Array.from({ length: numPages }, (_, i) => {
+              {Array.from({ length: Math.min(visiblePages, numPages) }, (_, i) => {
                 const pageNum = i + 1
                 const isHighlighted = pdfViewer.snippet && pageNum === pdfViewer.pageNumber
                 return (
                   <div key={pageNum}>
                     {isHighlighted && (
-                      <div
-                        className="mx-auto mb-2 rounded-lg border-2 border-amber-400 bg-amber-50 px-4 py-3 shadow-sm"
-                        style={{ width: pageWidth }}
-                      >
+                      <div className="mx-auto mb-2 rounded-lg border-2 border-amber-400 bg-amber-50 px-4 py-3 shadow-sm" style={{ width: pageWidth }}>
                         <div className="flex items-start gap-2">
                           <span className="text-amber-600 text-sm shrink-0 mt-0.5">🔍</span>
                           <div>
                             <div className="text-xs font-semibold text-amber-700 mb-1">命中内容</div>
-                            <div className="text-xs text-amber-800 leading-relaxed line-clamp-4">
-                              {pdfViewer.snippet}
-                            </div>
+                            <div className="text-xs text-amber-800 leading-relaxed line-clamp-4">{pdfViewer.snippet}</div>
                           </div>
                         </div>
                       </div>
                     )}
-                    <LazyPage
-                      pageNum={pageNum}
-                      width={pageWidth}
-                      onRegister={setPageRef}
-                      onVisible={() => {}}
-                    />
+                    <div ref={(el) => setPageRef(pageNum, el)} className="shadow-md bg-white">
+                      <Page pageNumber={pageNum} renderTextLayer={true} renderAnnotationLayer={true} width={pageWidth} />
+                    </div>
                   </div>
                 )
               })}
             </Document>
           )}
           {!loading && !fileObj && (
-            <div className="flex items-center justify-center py-24 text-sm text-muted-foreground">
-              PDF 加载失败，请检查文件是否存在。
-            </div>
+            <div className="flex items-center justify-center py-24 text-sm text-muted-foreground">PDF 加载失败，请检查文件是否存在。</div>
           )}
         </div>
       </div>
