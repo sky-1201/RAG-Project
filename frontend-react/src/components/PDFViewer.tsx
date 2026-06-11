@@ -108,22 +108,20 @@ export function PDFViewer() {
     }
   }, [])
 
-  // 滚动到目标页
+  const pageWidth = Math.min(window.innerWidth * (window.innerWidth < 1024 ? 0.95 : 0.65), 900)
+
+  // 滚动到目标页（用固定计算位置，避免懒加载高度不一致导致偏移）
   useEffect(() => {
     const targetPage = pdfViewer.pageNumber || 1
     if (numPages === 0 || lastScrolledPage.current === targetPage) return
-    const tryScroll = () => {
-      const el = pageRefs.current.get(targetPage)
-      if (el) {
-        lastScrolledPage.current = targetPage
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      } else if (pageRefs.current.size < numPages) {
-        setTimeout(tryScroll, 200)
-      }
-    }
-    const timer = setTimeout(tryScroll, 300)
-    return () => clearTimeout(timer)
-  }, [numPages, pdfViewer.pageNumber])
+    const container = scrollRef.current
+    if (!container) return
+    // 每页高度 = 占位高度 + Document 的 py-4 gap-4
+    const pageHeight = pageWidth * 1.414 + 32
+    const top = (targetPage - 1) * pageHeight
+    lastScrolledPage.current = targetPage
+    container.scrollTo({ top, behavior: 'smooth' })
+  }, [numPages, pdfViewer.pageNumber, pageWidth])
 
   // 滚动时检测当前页码
   const handleScroll = useCallback(() => {
@@ -145,8 +143,6 @@ export function PDFViewer() {
   const fileObj = useMemo(() => {
     return pdfData ? { data: pdfData } : null
   }, [pdfData])
-
-  const pageWidth = Math.min(window.innerWidth * (window.innerWidth < 1024 ? 0.95 : 0.65), 900)
 
   if (!pdfViewer.isOpen) return null
 
