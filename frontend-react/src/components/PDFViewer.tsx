@@ -110,17 +110,26 @@ export function PDFViewer() {
 
   const pageWidth = Math.min(window.innerWidth * (window.innerWidth < 1024 ? 0.95 : 0.65), 900)
 
-  // 滚动到目标页（用固定计算位置，避免懒加载高度不一致导致偏移）
+  // 滚动到目标页（先估算位置触发懒加载渲染，再精确定位）
   useEffect(() => {
     const targetPage = pdfViewer.pageNumber || 1
     if (numPages === 0 || lastScrolledPage.current === targetPage) return
     const container = scrollRef.current
     if (!container) return
-    // 每页高度 = 占位高度 + Document 的 py-4 gap-4
-    const pageHeight = pageWidth * 1.414 + 32
-    const top = (targetPage - 1) * pageHeight
+    // 第 1 步：先滚到估算位置，让 IntersectionObserver 触发目标页渲染
+    const estHeight = pageWidth * 1.414 + 32
+    container.scrollTo({ top: (targetPage - 1) * estHeight, behavior: 'instant' as ScrollBehavior })
     lastScrolledPage.current = targetPage
-    container.scrollTo({ top, behavior: 'smooth' })
+    // 第 2 步：等渲染完成后精确对齐
+    const tryAlign = () => {
+      const el = pageRefs.current.get(targetPage)
+      if (el && el.getBoundingClientRect().height > 150) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      } else {
+        setTimeout(tryAlign, 200)
+      }
+    }
+    setTimeout(tryAlign, 300)
   }, [numPages, pdfViewer.pageNumber, pageWidth])
 
   // 滚动时检测当前页码
