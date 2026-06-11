@@ -120,6 +120,10 @@ export function PDFViewer() {
               {Array.from({ length: numPages }, (_, i) => {
                 const pageNum = i + 1
                 const isHighlighted = pdfViewer.snippet && pageNum === pdfViewer.pageNumber
+                const isMobile = window.innerWidth < 1024
+                // 手机端只渲染当前页附近 3 页，避免内存爆炸闪退
+                const inRange = isMobile ? Math.abs(pageNum - currentPage) <= 2 : true
+                if (!inRange) return <div key={pageNum} ref={(el) => setPageRef(pageNum, el)} style={{ width: pageWidth, height: pageWidth * 1.414 }} />
                 // 只对当前可见页 ±3 开启文字/注释层，大幅减少 DOM 节点避免卡死
                 const nearViewport = Math.abs(pageNum - currentPage) <= 3
                 return (
