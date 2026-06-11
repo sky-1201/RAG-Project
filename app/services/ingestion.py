@@ -87,18 +87,34 @@ class DocumentIngestionService:
     def _find_page_number(self, chunk_text: str, page_texts: dict) -> int:
         """
         通过文本匹配确定一段文字来自 PDF 的哪一页。
-        策略：先用子串精确匹配，失败后用字符重叠度打分。
+        策略：先用子串精确匹配，失败后用 3 字词组（n-gram）重叠度打分。
         """
-        search = chunk_text[:300].strip()
-        if not search:
+        # 清洗文本：去掉多余空白，提高 pypdf 和 Docling 文本的匹配率
+        def normalize(text: str) -> str:
+            import re as _re
+            text = _re.sub(r'\s+', ' ', text).strip()
+            return text
+
+        search = normalize(chunk_text[:300])
+        if not search or len(search) < 10:
             return 1
+
+        # 归一化所有页面文本
+        norm_pages = {p: normalize(t) for p, t in page_texts.items()}
+
         best_page, best_score = 1, 0
-        for page_num, page_text in page_texts.items():
-            if search in page_text:
-                return page_num  # 精确命中，直接返回
-            overlap = sum(1 for c in search if c in page_text)
-            if overlap > best_score:
-                best_score, best_page = overlap, page_num
+        for page_num, page_text in norm_pages.items():
+            if search[:60] in page_text:
+                return page_num  # 前 60 字精确命中 → 高置信度
+
+            # 3-gram 重叠度打分（比单字重叠准确得多）
+            tri_set = {search[j:j+3] for j in range(0, len(search) - 2)}
+            if not tri_set:
+                continue
+            matches = sum(1 for tri in tri_set if tri in page_text)
+            if matches > best_score:
+                best_score, best_page = matches, page_num
+
         return best_page
 
     def _extract_metadata_via_llm(self, md_text: str) -> dict:
