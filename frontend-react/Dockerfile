@@ -22,6 +22,9 @@ RUN npm run build
 # ==========================================
 FROM nginx:1.27-alpine
 
+# 补充 .mjs MIME 类型（PDF.js worker 需要）
+RUN echo '    application/javascript mjs;' >> /etc/nginx/mime.types
+
 # 复制构建产物
 COPY --from=builder /app/dist /usr/share/nginx/html
 
