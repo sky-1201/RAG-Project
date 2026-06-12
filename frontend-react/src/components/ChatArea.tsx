@@ -54,7 +54,7 @@ export function ChatArea() {
       <header className="flex items-center justify-between border-b px-6 py-3">
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />
-          <h1 className="text-base font-semibold">智能金融投研 Agent</h1>
+          <h1 className="text-base font-semibold">智能财报分析系统</h1>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -80,7 +80,7 @@ export function ChatArea() {
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
                 <Bot className="h-8 w-8 text-primary" />
               </div>
-              <h2 className="mb-2 text-xl font-semibold">Finance-RAG 智能投研助手</h2>
+              <h2 className="mb-2 text-xl font-semibold">智能财报分析系统</h2>
               <p className="max-w-md text-sm text-muted-foreground">
                 Agent 自主检索 · 代码沙盒计算 · 双路语义召回
                 <br />

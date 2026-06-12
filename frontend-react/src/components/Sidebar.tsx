@@ -44,6 +44,7 @@ export function Sidebar({
   const [convs, setConvs] = useState<ConversationSummary[]>([])
   const [loadingConvId, setLoadingConvId] = useState<string | null>(null)
   const [files, setFiles] = useState<FileInfo[]>([])
+  const [activeTab, setActiveTab] = useState<'chat' | 'files'>('chat')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState("")
   const [deleteTarget, setDeleteTarget] = useState<{ hash: string; name: string } | null>(null)
@@ -197,7 +198,7 @@ export function Sidebar({
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />
-          <span className="font-semibold text-sm">Finance-RAG</span>
+          <span className="font-semibold text-sm">智能财报分析</span>
         </div>
         {/* 桌面端：折叠按钮 */}
         <Button variant="ghost" size="icon" className="hidden lg:flex h-7 w-7" onClick={onCollapse}>
@@ -283,93 +284,95 @@ export function Sidebar({
 
       <Separator />
 
-      {/* 当前对话 */}
-      {currentConversationId && (
-        <div className="px-3 py-2">
-          <div className="flex items-center gap-2 rounded-md bg-accent/50 px-3 py-2">
-            <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="truncate text-xs">{convTitle}</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="ml-auto h-6 w-6 shrink-0 text-destructive hover:text-destructive"
-              onClick={() => handleDelete(currentConversationId)}
-              title="删除此对话"
+      {/* Tab 切换：当前对话 / 知识库 */}
+      <div className="mt-1 px-3">
+          <div className="flex rounded-md bg-muted p-0.5">
+            <button
+              className={cn(
+                'flex-1 rounded-sm px-2 py-1.5 text-xs font-medium transition-colors',
+                activeTab === 'chat' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              )}
+              onClick={() => setActiveTab('chat')}
             >
-              <Trash2 className="h-3 w-3" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 shrink-0"
-              onClick={handleNewConv}
-              title="新建对话"
+              💬 对话
+            </button>
+            <button
+              className={cn(
+                'flex-1 rounded-sm px-2 py-1.5 text-xs font-medium transition-colors',
+                activeTab === 'files' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              )}
+              onClick={() => setActiveTab('files')}
             >
-              <Plus className="h-3 w-3 text-muted-foreground" />
-            </Button>
+              📚 知识库
+            </button>
           </div>
         </div>
-      )}
-      {!currentConversationId && messages.length > 0 && (
-        <div className="px-3 py-2">
-          <div className="flex items-center gap-2 rounded-md bg-accent/50 px-3 py-2">
-            <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="truncate text-xs">{convTitle}</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="ml-auto h-6 w-6 shrink-0"
-              onClick={handleNewConv}
-            >
-              <Plus className="h-3 w-3 text-muted-foreground" />
-            </Button>
-          </div>
-        </div>
-      )}
 
-      <Separator />
-
-      {/* 知识库管理 */}
-      <div className="px-3 py-3">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          知识库管理
-        </h2>
-        <FileUpload />
-
-        {/* 已入库文件列表 */}
-        {files.length > 0 && (
-          <div className="mt-3 space-y-1">
-            {files.map((f) => (
-              <div
-                key={f.file_hash}
-                className="group flex items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent cursor-pointer"
-                onClick={() => openPdfViewer(f.file_hash, f.file_name, 1)}
-              >
-                <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <div className="flex-1 min-w-0">
-                  <div className="truncate">{f.file_name}</div>
-                  <div className="text-[10px] text-muted-foreground/70 mt-0.5">
-                    {f.file_size > 0 ? `${(f.file_size / 1024 / 1024).toFixed(1)} MB` : ''}
-                    {f.file_size > 0 && f.upload_time ? ' · ' : ''}
-                    {f.upload_time ? new Date(f.upload_time).toLocaleDateString('zh-CN') : ''}
-                  </div>
-                </div>
-                <span
-                  className="h-4 w-4 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center text-muted-foreground hover:text-destructive"
-                  title="删除此文件"
-                  onClick={(e) => { e.stopPropagation(); setDeleteTarget({ hash: f.file_hash, name: f.file_name }) }}
-                >
+      {/* Tab 内容 */}
+      {activeTab === 'chat' ? (
+        <>
+          {/* 当前对话 */}
+          {currentConversationId && (
+            <div className="px-3 py-2">
+              <div className="flex items-center gap-2 rounded-md bg-accent/50 px-3 py-2">
+                <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="truncate text-xs">{convTitle}</span>
+                <Button variant="ghost" size="icon" className="ml-auto h-6 w-6 shrink-0 text-destructive hover:text-destructive"
+                  onClick={() => handleDelete(currentConversationId)} title="删除此对话">
                   <Trash2 className="h-3 w-3" />
-                </span>
+                </Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0"
+                  onClick={handleNewConv} title="新建对话">
+                  <Plus className="h-3 w-3 text-muted-foreground" />
+                </Button>
               </div>
-            ))}
-          </div>
-        )}
-
-        <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
-          建议上传类似「深信服2025年半年度报告.pdf」命名格式的文件，以便系统自动提取年份与公司信息。
-        </p>
-      </div>
+            </div>
+          )}
+          {!currentConversationId && messages.length > 0 && (
+            <div className="px-3 py-2">
+              <div className="flex items-center gap-2 rounded-md bg-accent/50 px-3 py-2">
+                <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="truncate text-xs">{convTitle}</span>
+                <Button variant="ghost" size="icon" className="ml-auto h-6 w-6 shrink-0"
+                  onClick={handleNewConv}>
+                  <Plus className="h-3 w-3 text-muted-foreground" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="px-3 py-3">
+          <FileUpload />
+          {files.length > 0 && (
+            <div className="mt-3 space-y-1 max-h-40 overflow-auto">
+              {files.map((f) => (
+                <div key={f.file_hash}
+                  className="group flex items-center gap-1 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent cursor-pointer"
+                  onClick={() => openPdfViewer(f.file_hash, f.file_name, 1)}>
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate">{f.file_name}</div>
+                    <div className="text-[10px] text-muted-foreground/70 mt-0.5">
+                      {f.file_size > 0 ? `${(f.file_size / 1024 / 1024).toFixed(1)} MB` : ''}
+                      {f.file_size > 0 && f.upload_time ? ' · ' : ''}
+                      {f.upload_time ? new Date(f.upload_time).toLocaleDateString('zh-CN') : ''}
+                    </div>
+                  </div>
+                  <span className="h-4 w-4 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center text-muted-foreground hover:text-destructive"
+                    title="删除此文件"
+                    onClick={(e) => { e.stopPropagation(); setDeleteTarget({ hash: f.file_hash, name: f.file_name }) }}>
+                    <Trash2 className="h-3 w-3" />
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
+            建议上传「公司名+年份+报告类型.pdf」格式，系统自动提取年份与公司信息。
+          </p>
+        </div>
+      )}
 
       <Separator />
 
