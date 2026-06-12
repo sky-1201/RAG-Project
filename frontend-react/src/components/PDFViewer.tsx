@@ -50,21 +50,29 @@ export function PDFViewer() {
     if (el) pageRefs.current.set(pageNum, el)
   }, [])
 
+  const pageWidth = Math.min(window.innerWidth * (window.innerWidth < 1024 ? 0.95 : 0.65), 900)
+
   // 滚动到目标页
   useEffect(() => {
     const targetPage = pdfViewer.pageNumber || 1
     if (numPages === 0 || lastScrolledPage.current === targetPage) return
-    const tryScroll = () => {
+    const container = scrollRef.current
+    if (!container) return
+    lastScrolledPage.current = targetPage
+    // 第 1 步：快速滚到估算位置，触发目标页渲染
+    const estHeight = pageWidth * 1.414 + 32
+    container.scrollTo({ top: (targetPage - 1) * estHeight, behavior: 'instant' as ScrollBehavior })
+    // 第 2 步：等渲染完成后精确 scrollIntoView 对齐
+    const tryAlign = () => {
       const el = pageRefs.current.get(targetPage)
-      if (el && el.getBoundingClientRect().height > 50) {
-        lastScrolledPage.current = targetPage
+      if (el && el.getBoundingClientRect().height > 150) {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' })
       } else {
-        setTimeout(tryScroll, 100)
+        setTimeout(tryAlign, 200)
       }
     }
-    setTimeout(tryScroll, 300)
-  }, [numPages, pdfViewer.pageNumber])
+    setTimeout(tryAlign, 400)
+  }, [numPages, pdfViewer.pageNumber, pageWidth])
 
   // 滚动检测当前页码
   const handleScroll = useCallback(() => {
@@ -80,7 +88,6 @@ export function PDFViewer() {
   }, [])
 
   const fileObj = useMemo(() => pdfData ? { data: pdfData } : null, [pdfData])
-  const pageWidth = Math.min(window.innerWidth * (window.innerWidth < 1024 ? 0.95 : 0.65), 900)
 
   if (!pdfViewer.isOpen) return null
 
@@ -120,11 +127,19 @@ export function PDFViewer() {
               {Array.from({ length: numPages }, (_, i) => {
                 const pageNum = i + 1
                 const isHighlighted = pdfViewer.snippet && pageNum === pdfViewer.pageNumber
-                const isMobile = window.innerWidth < 1024
-                // 手机端只渲染当前页附近 3 页，避免内存爆炸闪退
-                const inRange = isMobile ? Math.abs(pageNum - currentPage) <= 2 : true
-                if (!inRange) return <div key={pageNum} ref={(el) => setPageRef(pageNum, el)} style={{ width: pageWidth, height: pageWidth * 1.414 }} />
-                // 只对当前可见页 ±3 开启文字/注释层，大幅减少 DOM 节点避免卡死
+                const isMobile = window.innerWidth < 640
+                // 手机端：当前页 ±2 渲染 Canvas，其余用高度一致的占位符避免内存爆炸
+                // 桌面端：全部渲染 Canvas
+                // 高亮目标页强制渲染，手机端其他页用占位符
+                const inRange = !isMobile || isHighlighted || Math.abs(pageNum - currentPage) <= 2
+                if (!inRange) {
+                  return (
+                    <div key={pageNum}>
+                      <div ref={(el) => setPageRef(pageNum, el)} style={{ width: pageWidth, height: pageWidth * 1.414 }} />
+                    </div>
+                  )
+                }
+                // 只对当前可见页 ±3 开启文字/注释层
                 const nearViewport = Math.abs(pageNum - currentPage) <= 3
                 return (
                   <div key={pageNum}>
