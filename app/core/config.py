@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     DASHSCOPE_API_KEY: str  # 必须在 .env 中配置，否则启动报错
     EMBEDDING_MODEL: str = "text-embedding-v4"  # 阿里最新的大模型嵌入 API
     EMBEDDING_DIM: int = 1024                    # text-embedding-v4 输出维度
-    LLM_MODEL: str = "qwen-max"                  # Agent 推理模型
+    LLM_MODEL: str = "qwen3.7-max"                  # Agent 推理模型
     RERANK_MODEL: str = "gte-rerank-v2"          # Rerank 重排序模型
     """
     # --- Milvus 向量库配置 (Docker Standalone 模式) ---本地后端模式
