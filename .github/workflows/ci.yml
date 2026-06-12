@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 
 on:
   push:
@@ -32,8 +32,24 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-mock
 
-      - name: 运行全部测试
+      - name: 运行测试
         env:
           DASHSCOPE_API_KEY: ci-dummy-key
-        run: |
-          pytest tests/ -v --tb=short
+        run: pytest tests/ -v --tb=short
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/release'
+
+    steps:
+      - name: SSH 部署到服务器
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /root/RAG-Project
+            git pull origin release
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
