@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [release, main]
+  pull_request:
+    branches: [release, main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 安装依赖
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-mock
+
+      - name: 运行全部测试
+        env:
+          DASHSCOPE_API_KEY: ci-dummy-key
+        run: |
+          pytest tests/ -v --tb=short
