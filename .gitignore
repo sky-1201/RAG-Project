@@ -38,6 +38,9 @@ volumes_v2/
 # 7. 前端构建产物
 frontend-react/dist/
 frontend-react/node_modules/
+frontend-react-v2/dist/
+frontend-react-v2/node_modules/
+.vite/
 
 # 8. 评测报告
 evals/reports/
@@ -46,6 +49,7 @@ evals/reports/
 temp/
 notebooks/
 *.pdf
+*.tsbuildinfo
 
 # 10. 系统文件
 Thumbs.db
