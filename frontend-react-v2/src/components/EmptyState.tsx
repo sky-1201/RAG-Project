@@ -50,9 +50,9 @@ export function EmptyState() {
           试试这样问
         </p>
         <div className="grid gap-2">
-          <Suggestion text="2025年深信服的营收是多少？" />
-          <Suggestion text="深信服2025年上半年营收同比增长多少？" />
-          <Suggestion text="计算2025年深信服的毛利率并与2024年对比" />
+          <Suggestion text="深信服公司的联系人是谁？股权结构是怎么样的？" />
+          <Suggestion text="比亚迪2025年比上年营收同比增长多少？" />
+          <Suggestion text="比亚迪公司的员工结构和薪资待遇怎么样？" />
         </div>
       </div>
     </div>

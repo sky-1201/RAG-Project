@@ -57,7 +57,7 @@ export function ChatInput() {
         <div className="relative flex-1">
           <Textarea
             ref={textareaRef}
-            placeholder="输入问题，例如：计算2025年深信服的毛利率"
+            placeholder="例如：2024年比亚迪公司的营收是多少"
             rows={1}
             onKeyDown={handleKeyDown}
             onInput={handleInput}
